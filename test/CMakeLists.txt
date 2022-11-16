@@ -8,9 +8,11 @@ target_compile_options(Test_selected PRIVATE -W1 -std:c++17)
 target_sources(Test PRIVATE 
     ${CMAKE_CURRENT_SOURCE_DIR}/test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/experimental_thread.cpp
 )
 
 target_sources(Test_selected PRIVATE 
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_static_stack.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_test.cpp
 )
