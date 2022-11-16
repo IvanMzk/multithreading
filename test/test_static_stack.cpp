@@ -11,12 +11,14 @@ struct test_value_type{
     std::size_t a;
     std::size_t b;
     std::size_t c;
+    std::size_t d;
 
     test_value_type() = default;
     test_value_type(std::size_t v):
         a{v},
         b{v},
-        c{v}
+        c{v},
+        d{v}
     {}
     bool operator==(const test_value_type& other)const{
         return a==other.a && b==other.b && c==other.c;
