@@ -12,21 +12,24 @@ struct test_value_type{
     std::size_t b;
     std::size_t c;
     std::size_t d;
+    std::size_t e;
 
     test_value_type() = default;
     test_value_type(std::size_t v):
         a{v},
         b{v},
         c{v},
-        d{v}
+        d{v},
+        e{v}
     {}
     bool operator==(const test_value_type& other)const{
-        return a==other.a && b==other.b && c==other.c;
+        return a==other.a && b==other.b && c==other.c && d==other.d && e==other.e;
     }
     friend std::ostream& operator<<(std::ostream& os, const test_value_type& lhs){
-        return os<<"("<<lhs.a<<" "<<lhs.b<<" "<<lhs.c<<")";
+        return os<<"("<<lhs.a<<" "<<lhs.b<<" "<<lhs.c<<" "<<lhs.d<<" "<<lhs.e<<")";
     }
-    auto get()const{return a;}
+    //auto get()const{return a;}
+    operator std::size_t(){return a;}
 };
 
 }
@@ -48,9 +51,13 @@ TEST_CASE("single_thread_test","[test_static_stack]"){
     }
 }
 
-TEST_CASE("push_multi_thread_test","[test_static_stack]"){
-    //using value_type = test_static_stack::test_value_type;
-    using value_type = std::size_t;
+TEMPLATE_TEST_CASE("push_multi_thread_test","[test_static_stack]",
+    test_static_stack::test_value_type,
+    std::size_t,
+    double
+)
+{
+    using value_type = TestType;
     using experimental_multithreading::static_stack;
     static constexpr std::size_t threads_n = 10;
     static constexpr std::size_t pushes_per_thread = 10;
@@ -63,7 +70,7 @@ TEST_CASE("push_multi_thread_test","[test_static_stack]"){
     auto f = [&stack](std::size_t min, std::size_t max){
         for(std::size_t i{min}; i!=max; ++i){
             std::this_thread::sleep_for(std::chrono::milliseconds{i%13});
-            stack.push(value_type{i});
+            stack.push(static_cast<value_type>(i));
         }
     };
     for(int i{0}; i!=threads_n; ++i){
@@ -78,14 +85,10 @@ TEST_CASE("push_multi_thread_test","[test_static_stack]"){
     std::vector<value_type> expected(stack_max_size, -1);
     for(std::size_t i{0}; i!=stack_max_size; ++i){
         auto r = stack[i];
-        std::cout<<std::endl<<r<<r;
-        expected[r] = r;
-        //std::cout<<std::endl<<r.get()<<r;
-        //expected[r.get()] = r;
+        expected[static_cast<std::size_t>(r)] = r;
     }
     for(std::size_t i{0}; i!=stack_max_size; ++i){
-        std::cout<<std::endl<<expected[i]<<value_type{i};
-        REQUIRE(expected[i] == value_type{i});
+        REQUIRE(expected[i] == static_cast<value_type>(i));
     }
 
 }
