@@ -47,8 +47,8 @@ TEST_CASE("single_thread_test","[test_static_stack]"){
 }
 
 TEST_CASE("push_multi_thread_test","[test_static_stack]"){
-    using value_type = test_static_stack::test_value_type;
-    //using value_type = std::size_t;
+    //using value_type = test_static_stack::test_value_type;
+    using value_type = std::size_t;
     using experimental_multithreading::static_stack;
     static constexpr std::size_t threads_n = 10;
     static constexpr std::size_t pushes_per_thread = 10;
@@ -76,10 +76,10 @@ TEST_CASE("push_multi_thread_test","[test_static_stack]"){
     std::vector<value_type> expected(stack_max_size, -1);
     for(std::size_t i{0}; i!=stack_max_size; ++i){
         auto r = stack[i];
-        //std::cout<<std::endl<<r<<r;
-        //expected[r] = r;
-        std::cout<<std::endl<<r.get()<<r;
-        expected[r.get()] = r;
+        std::cout<<std::endl<<r<<r;
+        expected[r] = r;
+        //std::cout<<std::endl<<r.get()<<r;
+        //expected[r.get()] = r;
     }
     for(std::size_t i{0}; i!=stack_max_size; ++i){
         std::cout<<std::endl<<expected[i]<<value_type{i};
