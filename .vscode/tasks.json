@@ -6,7 +6,7 @@
         {
             "type": "shell",
             "label": "cmake generate",
-            "command": "cmake.exe -G Ninja -S ${workspaceFolder} -B ${workspaceFolder}\\build",
+            "command": "cmake.exe -DCMAKE_BUILD_TYPE=Release -G \"Ninja\" -S ${workspaceFolder} -B ${workspaceFolder}\\build",
             "args": [],
             "options": {
                 "cwd": "${workspaceFolder}"

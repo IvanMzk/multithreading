@@ -28,7 +28,6 @@ struct test_value_type{
     friend std::ostream& operator<<(std::ostream& os, const test_value_type& lhs){
         return os<<"("<<lhs.a<<" "<<lhs.b<<" "<<lhs.c<<" "<<lhs.d<<" "<<lhs.e<<")";
     }
-    //auto get()const{return a;}
     operator std::size_t(){return a;}
 };
 
