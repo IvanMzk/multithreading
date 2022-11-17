@@ -20,15 +20,17 @@ public:
         ++end_;
     }
     auto pop(){
-        
+        std::unique_lock<mutex_type> lock{guard};
+        auto v = elements_[end_-1];
+        --end_;
+        return v;
     }
-    
     auto size()const{
         return end_;
     }
-    auto operator[](std::size_t i){
-        return elements_[i]; 
-    }
+    // auto operator[](std::size_t i){
+    //     return elements_[i];
+    // }
 private:
     mutex_type guard;
     std::array<value_type,N> elements_{};
@@ -68,7 +70,7 @@ private:
 //         return end_.load();
 //     }
 //     auto operator[](std::size_t i){
-//         return elements_[i]; 
+//         return elements_[i];
 //     }
 // private:
 //     std::array<value_type,N> elements_{};

@@ -3,6 +3,8 @@
 
 #include <chrono>
 
+namespace benchmark_helpers{
+
 class cpu_timer
 {
     using clock_type = std::chrono::steady_clock;
@@ -16,5 +18,8 @@ public:
         return std::chrono::duration<float,std::milli>(end.point_-start.point_).count();
     }
 };
+
+}   //end of namespace benchmark_helpers
+
 
 #endif
