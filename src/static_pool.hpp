@@ -22,18 +22,28 @@ public:
     static_pool(Args&&...args):
         static_pool(std::make_index_sequence<N_Elements>{}, std::forward<Args>(args)...)
     {}
-    //async pop, immidiately return empty element if pool is empty
-    auto pop(){
+    //pops element from pool
+    //wait = false: immidiately return empty element if pool is empty
+    //wait = true: wait until pool is not empty, push signals when element is returned to pool
+    auto pop(bool wait = false){
         std::unique_lock<mutex_type> lock{guard};
         if (end_){
-            --end_;
-            return pool_[end_]->make_shared_element();
+            return pool_[--end_]->make_shared_element();
         }else{
-            return element::make_empty_shared_element();
+            if (wait){
+                is_empty.wait(lock,[this](){return !empty();});
+                return pool_[--end_]->make_shared_element();
+            }else{
+                return element::make_empty_shared_element();
+            }
         }
+
     }
     auto size()const{
         return end_;
+    }
+    auto empty()const{
+        return !static_cast<bool>(size());
     }
 private:
 
@@ -59,6 +69,7 @@ private:
                 pool_->push(this);
             }
         }
+
         class shared_element{
             friend class element;
             element* elem_;
@@ -104,12 +115,14 @@ private:
         std::unique_lock<mutex_type> lock{guard};
         pool_[end_] = e;
         ++end_;
+        is_empty.notify_one();
     }
 
     std::array<element,N_Elements> elements_;
     std::array<element*,N_Elements> pool_;
     std::size_t end_{N_Elements};
     mutex_type guard{};
+    std::condition_variable is_empty{};
 };
 
 }   //end of namespace experimental_multithreading

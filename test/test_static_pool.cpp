@@ -154,13 +154,17 @@ TEST_CASE("test_multithread","[test_static_pool]")
     REQUIRE(pool.size() == pool_size);
     auto f = [&pool](){
         for(std::size_t i{0}; i!=elements_per_thread; ++i){
-            auto e = pool.pop();
+            //auto e = pool.pop(false);
+            auto e = pool.pop(true);
             if (e){
-                auto e_copy{e};
-                std::this_thread::sleep_for(std::chrono::milliseconds{i%13});
-                if (i%2){
-                    e.reset();
-                }
+                //auto e_copy{e};
+                std::this_thread::sleep_for(std::chrono::milliseconds{1});
+                // if (i%2){
+                //     e.reset();
+                // }
+                //std::cout<<std::endl<<"got element"<<e.get();
+            }else{
+                //std::cout<<std::endl<<"got empty element";
             }
         }
     };
