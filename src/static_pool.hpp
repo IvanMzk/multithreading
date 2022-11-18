@@ -2,6 +2,7 @@
 #define STATIC_POOL_HPP_
 #include <atomic>
 #include <mutex>
+#include <condition_variable>
 #include <array>
 
 namespace experimental_multithreading{
@@ -17,52 +18,70 @@ public:
     static_pool():
         static_pool(std::make_index_sequence<N_Elements>{})
     {}
-
+    template<typename...Args>
+    static_pool(Args&&...args):
+        static_pool(std::make_index_sequence<N_Elements>{}, std::forward<Args>(args)...)
+    {}
+    //async pop, immidiately return empty element if pool is empty
     auto pop(){
         std::unique_lock<mutex_type> lock{guard};
-        --end_;
-        return pool_[end_]->make_shared_element();
+        if (end_){
+            --end_;
+            return pool_[end_]->make_shared_element();
+        }else{
+            return element::make_empty_shared_element();
+        }
     }
     auto size()const{
         return end_;
     }
 private:
 
-    template<std::size_t...I>
-    static_pool(std::index_sequence<I...>):
-        elements_{element::make_element(this, I)...},
+    template<std::size_t...I, typename...Args>
+    static_pool(std::index_sequence<I...>, Args&&...args):
+        elements_{element::make_element(this, I, std::forward<Args>(args)...)...},
         pool_{&elements_[I]...}
     {}
 
     class element{
         static_pool* pool_;
-        std::unique_ptr<value_type> impl_;
+        value_type impl_;
         std::atomic<std::size_t> use_count_{0};
-        element(static_pool* pool__):
+        template<typename...Args>
+        element(static_pool* pool__, Args&&...args):
             pool_{pool__},
-            impl_{std::make_unique<value_type>()}
+            impl_{std::forward<Args>(args)...}
         {}
-        auto inc_ref(){return use_count_.fetch_add(1);}
-        auto dec_ref(){return use_count_.fetch_sub(1);}
-        auto get()const{return impl_.get();}
-        auto push_to_pool(){pool_->push(this);}
-
+        auto get()const{return &impl_;}
+        void inc_ref(){use_count_.fetch_add(1);}
+        void dec_ref(){
+            if (use_count_.fetch_sub(1) == 1){
+                pool_->push(this);
+            }
+        }
         class shared_element{
             friend class element;
             element* elem_;
-            shared_element(element* elem__):
+            explicit shared_element(element* elem__):
                 elem_{elem__}
             {}
         public:
             ~shared_element(){
-                if (elem_->dec_ref() == 1){
-                    elem_->push_to_pool();
+                if(elem_){
+                    elem_->dec_ref();
                 }
             }
             shared_element(const shared_element& other):
                 elem_{other.elem_}
             {
                 elem_->inc_ref();
+            }
+            operator bool(){return static_cast<bool>(elem_);}
+            void reset(){
+                if (elem_){
+                    elem_->dec_ref();
+                    elem_ = nullptr;
+                }
             }
             auto use_count()const{return elem_->use_count();}
             auto get(){return elem_->get();}
@@ -74,8 +93,10 @@ private:
             inc_ref();
             return shared_element{this};
         }
-        static auto make_element(static_pool* pool__, std::size_t){
-            return element{pool__};
+        static auto make_empty_shared_element(){return shared_element{nullptr};}
+        template<typename...Args>
+        static auto make_element(static_pool* pool__, std::size_t, Args&&...args){
+            return element{pool__, std::forward<Args>(args)...};
         }
     };
 
