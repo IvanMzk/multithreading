@@ -12,9 +12,10 @@ target_sources(Test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/experimental_thread.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/benchmark_static_stack.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_static_stack.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_static_pool.cpp
 )
 
 target_sources(Test_selected PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_static_pool.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_circular_buffer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test.cpp
 )
