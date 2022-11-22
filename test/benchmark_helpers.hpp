@@ -19,6 +19,7 @@ public:
     }
 };
 
+
 }   //end of namespace benchmark_helpers
 
 
