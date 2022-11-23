@@ -1,6 +1,7 @@
 
 #include <thread>
 #include <vector>
+#include <iostream>
 #include "catch.hpp"
 #include "circular_buffer.hpp"
 
@@ -175,10 +176,11 @@ TEST_CASE("test_spsc_circular_buffer_multithread","[test_circular_buffer]"){
 TEST_CASE("test_mpmc_circular_buffer_multithread","[test_circular_buffer]"){
     using value_type = float;
     using test_circular_buffer::make_ranges;
-    static constexpr std::size_t n_producers = 1;
+    static constexpr std::size_t n_producers = 10;
     static constexpr std::size_t n_consumers = 1;
     static constexpr std::size_t buffer_size = 10;
     //static constexpr std::size_t n_elements = 1024*1024;
+    //static constexpr std::size_t n_elements = 1024;
     static constexpr std::size_t n_elements = 1024;
     using buffer_type = experimental_multithreading::mpmc_circular_buffer<value_type, buffer_size>;
     //using buffer_type = experimental_multithreading::spsc_circular_buffer<value_type, buffer_size>;
@@ -188,17 +190,26 @@ TEST_CASE("test_mpmc_circular_buffer_multithread","[test_circular_buffer]"){
     for (std::size_t i{0}; i!=n_elements; ++i){
         expected[i] = static_cast<value_type>(i);
     }
-    auto producer_f = [&buffer](auto first, auto last){
+    std::atomic<std::size_t> producer_counter{0};
+    auto producer_f = [&buffer,&producer_counter](auto first, auto last){
         std::for_each(first,last,
-            [&buffer](const auto& v){
-                while(!buffer.try_push(v));
+            [&buffer,&producer_counter](const auto& v){
+                while(!buffer.try_push(v)){
+                    //std::cout<<std::endl<<"producer_f";
+                }
+                producer_counter.fetch_add(1);
             }
         );
     };
-    auto consumer_f = [&buffer](auto first, auto last){
+
+    std::atomic<std::size_t> consumer_counter{0};
+    auto consumer_f = [&buffer,&consumer_counter](auto first, auto last){
         std::for_each(first,last,
-            [&buffer](auto& v){
-                while(!buffer.try_pop(v));
+            [&buffer,&consumer_counter](auto& v){
+                while(!buffer.try_pop(v)){
+                    //std::cout<<std::endl<<"consumer_f";
+                }
+                consumer_counter.fetch_add(1);
             }
         );
     };
@@ -218,8 +229,17 @@ TEST_CASE("test_mpmc_circular_buffer_multithread","[test_circular_buffer]"){
     }
 
 
+    std::this_thread::sleep_for(std::chrono::milliseconds{1000});
+    std::cout<<std::endl<<"producers_counter"<<producer_counter.load();
+    std::cout<<std::endl<<"join_producers...";
     std::for_each(producers.begin(),producers.end(),[](auto& t){t.join();});
+    std::cout<<std::endl<<"producers_counter"<<producer_counter.load();
+
+    std::this_thread::sleep_for(std::chrono::milliseconds{1000});
+    std::cout<<std::endl<<"consumers_counter"<<consumer_counter.load();
+    std::cout<<std::endl<<"join...consumers";
     std::for_each(consumers.begin(),consumers.end(),[](auto& t){t.join();});
+    std::cout<<std::endl<<"consumers_counter"<<consumer_counter.load();
 
     REQUIRE(result == expected);
     REQUIRE(buffer.size() == 0);

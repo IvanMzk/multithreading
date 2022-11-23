@@ -69,9 +69,9 @@ public:
     mpmc_circular_buffer() = default;
 
     bool try_push(const value_type& v){
+        auto pop_index__ = pop_index();
         std::unique_lock<mutex_type> lock{push_guard};
-
-        bool is_full{index(push_index_+1)==pop_index()};
+        bool is_full{index(push_index_+1)==pop_index__};
 
         if (!is_full){
 
@@ -85,9 +85,10 @@ public:
     }
 
     bool try_pop(value_type& v){
+        auto push_index__ = push_index();
         std::unique_lock<mutex_type> lock{pop_guard};
 
-        bool is_empty{push_index() == pop_index_};
+        bool is_empty{push_index__ == pop_index_};
 
         if (!is_empty){
 
