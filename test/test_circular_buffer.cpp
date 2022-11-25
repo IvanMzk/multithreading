@@ -1,6 +1,7 @@
 
 #include <thread>
 #include <vector>
+#include <set>
 #include <iostream>
 #include "catch.hpp"
 #include "circular_buffer.hpp"
@@ -177,11 +178,10 @@ TEST_CASE("test_mpmc_circular_buffer_multithread","[test_circular_buffer]"){
     using value_type = float;
     using test_circular_buffer::make_ranges;
     static constexpr std::size_t n_producers = 10;
-    static constexpr std::size_t n_consumers = 1;
+    static constexpr std::size_t n_consumers = 10;
     static constexpr std::size_t buffer_size = 10;
-    //static constexpr std::size_t n_elements = 1024*1024;
+    static constexpr std::size_t n_elements = 1024*1024;
     //static constexpr std::size_t n_elements = 1024;
-    static constexpr std::size_t n_elements = 1024;
     using buffer_type = experimental_multithreading::mpmc_circular_buffer<value_type, buffer_size>;
     //using buffer_type = experimental_multithreading::spsc_circular_buffer<value_type, buffer_size>;
 
@@ -241,7 +241,8 @@ TEST_CASE("test_mpmc_circular_buffer_multithread","[test_circular_buffer]"){
     std::for_each(consumers.begin(),consumers.end(),[](auto& t){t.join();});
     std::cout<<std::endl<<"consumers_counter"<<consumer_counter.load();
 
-    REQUIRE(result == expected);
+    //REQUIRE(result == expected);
+    REQUIRE(std::set<value_type>(expected.begin(),expected.end()) == std::set<value_type>(result.begin(),result.end()));
     REQUIRE(buffer.size() == 0);
 }
 
