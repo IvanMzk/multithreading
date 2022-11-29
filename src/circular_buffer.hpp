@@ -132,17 +132,20 @@ public:
 
     bool try_push(const value_type& v){
         if (!debug_stop_.load()){
-            element_state_type expected{element_state_type::empty};
-            auto push_index__ = push_index_.load();
-            if (elements_[push_index__].state.compare_exchange_weak(expected, element_state_type::locked_for_push)){
-                elements_[push_index__].value = v;
-                size_.fetch_add(1);
-                push_index_.store(index(push_index__+1));
-                elements_[push_index__].state.store(element_state_type::full);
-                return true;
+            auto push_counter__ = push_counter_.load();
+            auto& element = elements_[index(push_counter__)];
+            if (element.state.load() == element_state_type::empty){
+                if (push_counter_.compare_exchange_weak(push_counter__, push_counter__+1)){
+                    element.value = v;
+                    element.state.store(element_state_type::full);
+                    return true;
+                }else{
+                    return false;
+                }
             }else{
                 return false;
             }
+
         }else{
             return false;
         }
@@ -150,17 +153,20 @@ public:
 
     bool try_pop(value_type& v){
         if (!debug_stop_.load()){
-            element_state_type expected{element_state_type::full};
-            if (elements_[pop_index_].state.compare_exchange_weak(expected, element_state_type::locked_for_pop)){
-                v = elements_[pop_index_].value;
-                auto prev_index = pop_index_;
-                size_.fetch_sub(1);
-                pop_index_ = index(pop_index_+1);
-                elements_[prev_index].state.store(element_state_type::empty);
-                return true;
+            auto pop_counter__ = pop_counter_.load();
+            auto& element = elements_[index(pop_counter__)];
+            if (element.state.load() == element_state_type::full){
+                if (pop_counter_.compare_exchange_weak(pop_counter__, pop_counter__+1)){
+                    v = element.value;
+                    element.state.store(element_state_type::empty);
+                    return true;
+                }else{
+                    return false;
+                }
             }else{
                 return false;
             }
+
         }else{
             return false;
         }
@@ -174,7 +180,7 @@ public:
 
     }
 
-    auto size()const{return size_.load();}
+    auto size()const{return push_counter_.load() - pop_counter_.load();}
 
     void debug_stop(){
         debug_stop_.store(true);
@@ -184,7 +190,7 @@ public:
     }
     auto debug_to_str(){
         auto res = std::stringstream{};
-        res<<std::endl<<push_index_.load()<<" "<<pop_index_<<std::endl;
+        res<<std::endl<<push_counter_.load()<<" "<<index(push_counter_.load())<<" "<<pop_counter_.load()<<" "<<index(pop_counter_.load())<<std::endl;
         for (const element_type& i : elements_){
             res<<i.value<<" "<<i.state.load()<<",";
         }
@@ -219,10 +225,8 @@ private:
     auto index(size_type c)const{return c%(N);}
 
     std::array<element_type,N> elements_;
-    std::atomic<size_type> push_index_;
-    size_type pop_index_;
-    //std::atomic<size_type> pop_index_;
-    std::atomic<size_type> size_;
+    std::atomic<size_type> push_counter_;
+    std::atomic<size_type> pop_counter_;
     std::atomic<bool> debug_stop_{false};
 };
 

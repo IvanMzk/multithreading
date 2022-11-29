@@ -260,7 +260,6 @@ TEST_CASE("test_mpmc_circular_buffer_multithread","[test_circular_buffer]"){
     // std::for_each(consumers.begin(),consumers.end(),[](auto& t){t.join();});
     // std::cout<<std::endl<<"consumers_counter"<<consumer_counter.load();
 
-    //REQUIRE(result == expected);
     // REQUIRE(std::set<value_type>(expected.begin(),expected.end()) == std::set<value_type>(result.begin(),result.end()));
     REQUIRE(buffer.size() == 0);
 }
