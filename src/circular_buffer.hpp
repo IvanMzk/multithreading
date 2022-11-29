@@ -134,10 +134,11 @@ public:
         if (!debug_stop_.load()){
             auto push_counter__ = push_counter_.load();
             auto& element = elements_[index(push_counter__)];
-            if (element.state.load() == element_state_type::empty){
+            auto expected_state = state(push_counter__);
+            if (element.state.load() == expected_state){ //buffer overwrite protection
                 if (push_counter_.compare_exchange_weak(push_counter__, push_counter__+1)){
                     element.value = v;
-                    element.state.store(element_state_type::full);
+                    element.state.store(expected_state+2);
                     return true;
                 }else{
                     return false;
@@ -155,10 +156,11 @@ public:
         if (!debug_stop_.load()){
             auto pop_counter__ = pop_counter_.load();
             auto& element = elements_[index(pop_counter__)];
-            if (element.state.load() == element_state_type::full){
+            auto expected_state = state(pop_counter__)+2;
+            if (element.state.load() == expected_state){
                 if (pop_counter_.compare_exchange_weak(pop_counter__, pop_counter__+1)){
                     v = element.value;
-                    element.state.store(element_state_type::empty);
+                    element.state.store(expected_state-1);
                     return true;
                 }else{
                     return false;
@@ -198,31 +200,32 @@ public:
     }
 
 private:
-    enum class element_state_type:std::size_t{empty, locked_for_push, locked_for_pop, full};
-    friend std::ostream& operator<<(std::ostream& os, const element_state_type& s){
-        switch (s){
-            case element_state_type::empty:
-                return os<<"empty";
-            case element_state_type::locked_for_push:
-                return os<<"locked_for_push";
-            case element_state_type::locked_for_pop:
-                return os<<"locked_for_pop";
-            case element_state_type::full:
-                return os<<"full";
-        }
-    }
+    // enum class element_state_type:std::size_t{empty, locked_for_push, locked_for_pop, full};
+    // friend std::ostream& operator<<(std::ostream& os, const element_state_type& s){
+    //     switch (s){
+    //         case element_state_type::empty:
+    //             return os<<"empty";
+    //         case element_state_type::locked_for_push:
+    //             return os<<"locked_for_push";
+    //         case element_state_type::locked_for_pop:
+    //             return os<<"locked_for_pop";
+    //         case element_state_type::full:
+    //             return os<<"full";
+    //     }
+    // }
 
     struct element_type
     {
         element_type():
             value{},
-            state{element_state_type::empty}
+            state{0}
         {}
         value_type value;
-        std::atomic<element_state_type> state;
+        std::atomic<std::size_t> state;
     };
 
     auto index(size_type c)const{return c%(N);}
+    auto state(size_type c)const{return c/(N);}
 
     std::array<element_type,N> elements_;
     std::atomic<size_type> push_counter_;
