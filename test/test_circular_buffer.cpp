@@ -5,6 +5,7 @@
 #include <iostream>
 #include "catch.hpp"
 #include "circular_buffer.hpp"
+#include "four_pointers_circular_buffer.hpp"
 
 namespace test_circular_buffer{
 
@@ -39,7 +40,8 @@ TEST_CASE("test_make_ranges","test_make_ranges"){
 TEMPLATE_TEST_CASE("test_circular_buffer_empty","[test_circular_buffer]",
     (experimental_multithreading::spsc_circular_buffer<float, 10>),
     (experimental_multithreading::mpmc_circular_buffer<float, 10>),
-    (experimental_multithreading::mpmc_lock_free_circular_buffer<float, 10>)
+    (experimental_multithreading::mpmc_lock_free_circular_buffer<float, 10>),
+    (experimental_multithreading::four_pointers_circular_buffer<float, 10>)
 ){
     using buffer_type = TestType;
     using value_type = typename buffer_type::value_type;
