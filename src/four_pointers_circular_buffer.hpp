@@ -22,41 +22,62 @@ public :
 		/* Find a place to write */
 		//can't try push, must push at pos, pos is reserved by this call, wait(spin loop) until push at pos is possible
 		//if try push and cant push in this call, then pos is missed and value not stored, next succesful push make this missed slot valid to pop...
-		size_type pos = r_tail.fetch_add(1);
-		if (head_.load() + buffer_size <=  pos){//prevent cyclic overwriting
+		size_type reserved_pos = reserve_tail.fetch_add(1);
+		if (head_.load() + buffer_size <=  reserved_pos){//prevent cyclic overwriting
 			return false;
 		}
-		if (head_.load() + buffer_size > pos){
+		if (head_.load() + buffer_size > reserved_pos){
 
 		}
 
         /* do the write */
-		elements_[pos%buffer_size] = v;
+		elements_[reserved_pos%buffer_size] = v;
 
         /* stay you did the write */
+		//validate reserved pos, after inc it can be poped
 		tail_.fetch_add(1);
 
 		return true;
 	}
+	// auto try_push(const value_type& v) {
+	// 	/* Find a place to write */
+	// 	//can't try push, must push at pos, pos is reserved by this call, wait(spin loop) until push at pos is possible
+	// 	//if try push and cant push in this call, then pos is missed and value not stored, next succesful push make this missed slot valid to pop...
+	// 	size_type pos = reserve_tail.fetch_add(1);
+	// 	if (head_.load() + buffer_size <=  pos){//prevent cyclic overwriting
+	// 		return false;
+	// 	}
+	// 	if (head_.load() + buffer_size > pos){
+
+	// 	}
+
+    //     /* do the write */
+	// 	elements_[pos%buffer_size] = v;
+
+    //     /* stay you did the write */
+	// 	//validate reserved pos, after inc it can be poped
+	// 	tail_.fetch_add(1);
+
+	// 	return true;
+	// }
 
 	auto try_pop(value_type& v) {
 		// choose a position to read from
-		size_type  pos = r_head.fetch_add(1);
+		size_type  reserved_pos = reserve_head.fetch_add(1);
 
         // don't read from the tail...
-		if (pos >= tail_.load()){
-			std::cout<<std::endl<<pos<<" "<<tail_.load();
+		if (reserved_pos >= tail_.load()){
 			return false;
 		}
 
-		v = elements_[pos%buffer_size];
+		v = elements_[reserved_pos%buffer_size];
 		head_.fetch_add(1);
 		return true;
 	}
 
 	// void push(const value_type& v) {
 	// 	/* Find a place to write */
-	// 	size_type pos = r_tail.fetch_add(1);
+	// 	size_type pos = reserve_tail.fetch_add(1);
 	// 	while (head() + buffer_size <=  pos);
 
     //     /* do the write */
@@ -68,7 +89,7 @@ public :
 
 	// void pop(value_type& v) {
 	// 	// choose a position to read from
-	// 	size_type  pos = r_head.fetch_add(1);
+	// 	size_type  pos = reserve_head.fetch_add(1);
 
     //     // don't read from the tail...
 	// 	while (pos >= tail());
@@ -80,8 +101,8 @@ private:
 
     std::atomic<size_type> head_;
 	std::atomic<size_type> tail_;
-	std::atomic<size_type> r_head;
-	std::atomic<size_type> r_tail;
+	std::atomic<size_type> reserve_head;
+	std::atomic<size_type> reserve_tail;
     std::array<value_type, buffer_size> elements_;
 };
 
