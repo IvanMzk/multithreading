@@ -121,14 +121,18 @@ private:
     mutex_type pop_guard;
 };
 
-template<typename T, std::size_t N>
-class mpmc_lock_free_circular_buffer
+/*
+* use "epoch number" that is counter/buffer_size as protector from ABA
+* not safe under counter overflow
+*/
+template<typename T, std::size_t N, typename SizeT = std::size_t>
+class mpmc_lock_free_circular_buffer_v1
 {
 public:
     static constexpr std::size_t buffer_size = N;
-    using size_type = std::size_t;
+    using size_type = SizeT;
     using value_type = T;
-    mpmc_lock_free_circular_buffer() = default;
+    mpmc_lock_free_circular_buffer_v1() = default;
 
     bool try_push(const value_type& v){
         if (!debug_stop_.load()){
@@ -193,30 +197,16 @@ public:
     auto debug_to_str(){
         auto res = std::stringstream{};
         res<<std::endl<<push_counter_.load()<<" "<<index(push_counter_.load())<<" "<<pop_counter_.load()<<" "<<index(pop_counter_.load())<<std::endl;
-        for (const element_type& i : elements_){
+        for (const element& i : elements_){
             res<<i.value<<" "<<i.state.load()<<",";
         }
         return res.str();
     }
 
 private:
-    // enum class element_state_type:std::size_t{empty, locked_for_push, locked_for_pop, full};
-    // friend std::ostream& operator<<(std::ostream& os, const element_state_type& s){
-    //     switch (s){
-    //         case element_state_type::empty:
-    //             return os<<"empty";
-    //         case element_state_type::locked_for_push:
-    //             return os<<"locked_for_push";
-    //         case element_state_type::locked_for_pop:
-    //             return os<<"locked_for_pop";
-    //         case element_state_type::full:
-    //             return os<<"full";
-    //     }
-    // }
-
-    struct element_type
+    struct element
     {
-        element_type():
+        element():
             value{},
             state{0}
         {}
@@ -227,7 +217,113 @@ private:
     auto index(size_type c)const{return c%(N);}
     auto state(size_type c)const{return c/(N);}
 
-    std::array<element_type,N> elements_;
+    std::array<element,N> elements_;
+    std::atomic<size_type> push_counter_;
+    std::atomic<size_type> pop_counter_;
+    std::atomic<bool> debug_stop_{false};
+};
+
+template<typename T, std::size_t N, typename SizeT = std::size_t>
+class mpmc_lock_free_circular_buffer_v2
+{
+public:
+    static constexpr std::size_t buffer_size = N;
+    using size_type = SizeT;
+    using value_type = T;
+    static_assert(std::numeric_limits<size_type>::max() >= N);
+
+    mpmc_lock_free_circular_buffer_v2():
+        elements_{make_elements(std::make_integer_sequence<size_type, buffer_size>{})},
+        push_counter_{0},
+        pop_counter_{0}
+    {}
+
+    bool try_push(const value_type& v){
+        if (!debug_stop_.load()){
+            auto push_counter__ = push_counter_.load();
+            auto& element = elements_[index(push_counter__)];
+            if (element.id.load() == push_counter__){ //buffer overwrite protection
+                if (push_counter_.compare_exchange_weak(push_counter__, push_counter__+1)){
+                    element.value = v;
+                    element.id.store(push_counter__+1);
+                    return true;
+                }else{
+                    return false;
+                }
+            }else{
+                return false;
+            }
+
+        }else{
+            return false;
+        }
+    }
+
+    bool try_pop(value_type& v){
+        if (!debug_stop_.load()){
+            auto pop_counter__ = pop_counter_.load();
+            auto& element = elements_[index(pop_counter__)];
+            if (element.id.load() == pop_counter__+1){
+                if (pop_counter_.compare_exchange_weak(pop_counter__, pop_counter__+1)){
+                    v = element.value;
+                    element.id.store(pop_counter__+buffer_size);
+                    return true;
+                }else{
+                    return false;
+                }
+            }else{
+                return false;
+            }
+
+        }else{
+            return false;
+        }
+    }
+
+    void push(const value_type& v){
+
+    }
+
+    auto pop(){
+
+    }
+
+    auto size()const{return push_counter_.load() - pop_counter_.load();}
+
+    void debug_stop(){
+        debug_stop_.store(true);
+    }
+    void debug_start(){
+        debug_stop_.store(false);
+    }
+    auto debug_to_str(){
+        auto res = std::stringstream{};
+        res<<std::endl<<push_counter_.load()<<" "<<index(push_counter_.load())<<" "<<pop_counter_.load()<<" "<<index(pop_counter_.load())<<std::endl;
+        for (const element& i : elements_){
+            res<<i.value<<" "<<i.state.load()<<",";
+        }
+        return res.str();
+    }
+
+private:
+    struct element
+    {
+        element(size_type i):
+            value{},
+            id{i}
+        {}
+        value_type value;
+        std::atomic<size_type> id;
+    };
+
+    template<size_type I>
+    auto make_element()const{return element{I};}
+    template<size_type...I>
+    auto make_elements(std::integer_sequence<size_type, I...>){return std::array<element, sizeof...(I)>{make_element<I>()...};}
+
+    auto index(size_type c)const{return c%(buffer_size);}
+
+    std::array<element,buffer_size> elements_;
     std::atomic<size_type> push_counter_;
     std::atomic<size_type> pop_counter_;
     std::atomic<bool> debug_stop_{false};
