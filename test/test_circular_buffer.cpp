@@ -40,8 +40,8 @@ TEST_CASE("test_make_ranges","test_make_ranges"){
 TEMPLATE_TEST_CASE("test_circular_buffer_empty","[test_circular_buffer]",
     (experimental_multithreading::spsc_circular_buffer<float, 10>),
     (experimental_multithreading::mpmc_circular_buffer<float, 10>),
-    (experimental_multithreading::mpmc_lock_free_circular_buffer<float, 10>),
-    (experimental_multithreading::four_pointers_circular_buffer<float, 10>)
+    (experimental_multithreading::mpmc_lock_free_circular_buffer_v1<float, 10>),
+    (experimental_multithreading::mpmc_lock_free_circular_buffer_v2<float, 10>)
 ){
     using buffer_type = TestType;
     using value_type = typename buffer_type::value_type;
@@ -67,7 +67,8 @@ TEMPLATE_TEST_CASE("test_circular_buffer_empty","[test_circular_buffer]",
 TEMPLATE_TEST_CASE("test_circular_buffer_full","[test_circular_buffer]",
     (experimental_multithreading::spsc_circular_buffer<float, 10>),
     (experimental_multithreading::mpmc_circular_buffer<float, 10>),
-    (experimental_multithreading::mpmc_lock_free_circular_buffer<float, 10>)
+    (experimental_multithreading::mpmc_lock_free_circular_buffer_v1<float, 10>),
+    (experimental_multithreading::mpmc_lock_free_circular_buffer_v2<float, 10>)
 ){
     using buffer_type = TestType;
     using value_type = typename buffer_type::value_type;
@@ -104,7 +105,8 @@ TEMPLATE_TEST_CASE("test_circular_buffer_full","[test_circular_buffer]",
 TEMPLATE_TEST_CASE("test_circular_buffer_overwrite","[test_circular_buffer]",
     (experimental_multithreading::spsc_circular_buffer<float, 10>),
     (experimental_multithreading::mpmc_circular_buffer<float, 10>),
-    (experimental_multithreading::mpmc_lock_free_circular_buffer<float, 10>)
+    (experimental_multithreading::mpmc_lock_free_circular_buffer_v1<float, 10>),
+    (experimental_multithreading::mpmc_lock_free_circular_buffer_v2<float, 10>)
 ){
     using buffer_type = TestType;
     using value_type = typename buffer_type::value_type;
@@ -184,10 +186,13 @@ TEST_CASE("test_mpmc_circular_buffer_multithread","[test_circular_buffer]"){
     using test_circular_buffer::make_ranges;
     static constexpr std::size_t n_producers = 10;
     static constexpr std::size_t n_consumers = 10;
-    static constexpr std::size_t buffer_size = 64;
-    static constexpr std::size_t n_elements = 1024*1024;
+    static constexpr std::size_t buffer_size = 10;
+    static constexpr std::size_t n_elements = 256;
+    //static constexpr std::size_t n_elements = 1024*1024;
     //using buffer_type = experimental_multithreading::mpmc_circular_buffer<value_type, buffer_size>;
-    using buffer_type = experimental_multithreading::mpmc_lock_free_circular_buffer<value_type, buffer_size>;
+    //using buffer_type = experimental_multithreading::mpmc_lock_free_circular_buffer_v1<value_type, buffer_size>;
+    //using buffer_type = experimental_multithreading::mpmc_lock_free_circular_buffer_v2<value_type, buffer_size, unsigned char>;
+    using buffer_type = experimental_multithreading::mpmc_lock_free_circular_buffer_v2<value_type, buffer_size, std::uint8_t>;
     //using buffer_type = experimental_multithreading::spsc_circular_buffer<value_type, buffer_size>;
     buffer_type buffer{};
     std::vector<value_type> expected(n_elements);
