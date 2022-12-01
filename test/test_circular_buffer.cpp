@@ -186,13 +186,14 @@ TEST_CASE("test_mpmc_circular_buffer_multithread","[test_circular_buffer]"){
     using test_circular_buffer::make_ranges;
     static constexpr std::size_t n_producers = 10;
     static constexpr std::size_t n_consumers = 10;
-    static constexpr std::size_t buffer_size = 10;
-    static constexpr std::size_t n_elements = 256;
-    //static constexpr std::size_t n_elements = 1024*1024;
+    static constexpr std::size_t buffer_size = 64;
+    //static constexpr std::size_t n_elements = 1000;
+    static constexpr std::size_t n_elements = 1024*1024;
+    //static constexpr std::size_t n_elements = 1024;
     //using buffer_type = experimental_multithreading::mpmc_circular_buffer<value_type, buffer_size>;
     //using buffer_type = experimental_multithreading::mpmc_lock_free_circular_buffer_v1<value_type, buffer_size>;
-    //using buffer_type = experimental_multithreading::mpmc_lock_free_circular_buffer_v2<value_type, buffer_size, unsigned char>;
-    using buffer_type = experimental_multithreading::mpmc_lock_free_circular_buffer_v2<value_type, buffer_size, std::uint8_t>;
+    //using buffer_type = experimental_multithreading::mpmc_lock_free_circular_buffer_v1<value_type, buffer_size, unsigned char>;
+    using buffer_type = experimental_multithreading::mpmc_lock_free_circular_buffer_v2<value_type, buffer_size, unsigned char>;
     //using buffer_type = experimental_multithreading::spsc_circular_buffer<value_type, buffer_size>;
     buffer_type buffer{};
     std::vector<value_type> expected(n_elements);
@@ -253,14 +254,11 @@ TEST_CASE("test_mpmc_circular_buffer_multithread","[test_circular_buffer]"){
     // std::cout<<std::endl<<buffer.debug_to_str();
 
 
-    // std::this_thread::sleep_for(std::chrono::milliseconds{1000});
-    // std::cout<<std::endl<<"producers_counter"<<producer_counter.load();
     std::cout<<std::endl<<"join_producers...";
     std::for_each(producers.begin(),producers.end(),[](auto& t){t.join();});
     std::cout<<std::endl<<"producers_counter"<<producer_counter.load();
 
-    // std::this_thread::sleep_for(std::chrono::milliseconds{1000});
-    // std::cout<<std::endl<<"consumers_counter"<<consumer_counter.load();
+
     std::cout<<std::endl<<"join...consumers";
     std::for_each(consumers.begin(),consumers.end(),[](auto& t){t.join();});
     std::cout<<std::endl<<"consumers_counter"<<consumer_counter.load();
