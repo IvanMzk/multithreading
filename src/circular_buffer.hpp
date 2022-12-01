@@ -122,16 +122,17 @@ private:
 };
 
 /*
-* use "epoch number" that is counter/buffer_size as protector from ABA
+* use "epoch number" that is counter/buffer_size as protector from overwriting and read before write
 * not safe under counter overflow
 */
 template<typename T, std::size_t N, typename SizeT = std::size_t>
 class mpmc_lock_free_circular_buffer_v1
 {
 public:
-    static constexpr std::size_t buffer_size = N;
     using size_type = SizeT;
     using value_type = T;
+    static constexpr std::size_t buffer_size = N;
+    static constexpr std::size_t max_state = std::numeric_limits<size_type>::max()/buffer_size;
     mpmc_lock_free_circular_buffer_v1() = default;
 
     bool try_push(const value_type& v){
@@ -140,9 +141,9 @@ public:
             auto& element = elements_[index(push_counter__)];
             auto expected_state = state(push_counter__);
             if (element.state.load() == expected_state){ //buffer overwrite protection
-                if (push_counter_.compare_exchange_weak(push_counter__, push_counter__+1)){
+                if (push_counter_.compare_exchange_weak(push_counter__, static_cast<size_type>(push_counter__+1))){
                     element.value = v;
-                    element.state.store(expected_state+2);
+                    element.state.store(static_cast<size_type>(expected_state+2));
                     return true;
                 }else{
                     return false;
@@ -160,11 +161,11 @@ public:
         if (!debug_stop_.load()){
             auto pop_counter__ = pop_counter_.load();
             auto& element = elements_[index(pop_counter__)];
-            auto expected_state = state(pop_counter__)+2;
+            auto expected_state = static_cast<size_type>(state(pop_counter__))+2;
             if (element.state.load() == expected_state){
                 if (pop_counter_.compare_exchange_weak(pop_counter__, pop_counter__+1)){
                     v = element.value;
-                    element.state.store(expected_state-1);
+                    element.state.store(state(pop_counter__) == max_state ? 0 : expected_state-1);//must set to 0 if overflow in this epoch
                     return true;
                 }else{
                     return false;
@@ -211,11 +212,11 @@ private:
             state{0}
         {}
         value_type value;
-        std::atomic<std::size_t> state;
+        std::atomic<size_type> state;
     };
 
-    auto index(size_type c)const{return c%(N);}
-    auto state(size_type c)const{return c/(N);}
+    auto index(size_type c)const{return c%(buffer_size);}
+    auto state(size_type c)const{return static_cast<size_type>(c/buffer_size);}
 
     std::array<element,N> elements_;
     std::atomic<size_type> push_counter_;
@@ -223,6 +224,11 @@ private:
     std::atomic<bool> debug_stop_{false};
 };
 
+
+/*
+* if buffer_size is power of two counter overflow is safe, can use any unsigned size_type
+* if buffer_size is not power of two counter overflow leads to deadlock, should use the largest possible atomic type
+*/
 template<typename T, std::size_t N, typename SizeT = std::size_t>
 class mpmc_lock_free_circular_buffer_v2
 {
