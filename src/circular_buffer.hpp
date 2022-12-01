@@ -243,9 +243,9 @@ public:
             auto push_counter__ = push_counter_.load();
             auto& element = elements_[index(push_counter__)];
             if (element.id.load() == push_counter__){ //buffer overwrite protection
-                if (push_counter_.compare_exchange_weak(push_counter__, push_counter__+1)){
+                if (push_counter_.compare_exchange_weak(push_counter__, static_cast<size_type>(push_counter__+1))){
                     element.value = v;
-                    element.id.store(push_counter__+1);
+                    element.id.store(static_cast<size_type>(push_counter__+1));
                     return true;
                 }else{
                     return false;
@@ -263,15 +263,22 @@ public:
         if (!debug_stop_.load()){
             auto pop_counter__ = pop_counter_.load();
             auto& element = elements_[index(pop_counter__)];
-            if (element.id.load() == pop_counter__+1){
-                if (pop_counter_.compare_exchange_weak(pop_counter__, pop_counter__+1)){
+            if (element.id.load() == static_cast<size_type>(pop_counter__+1)){
+                if (pop_counter_.compare_exchange_weak(pop_counter__, static_cast<size_type>(pop_counter__+1))){
                     v = element.value;
-                    element.id.store(pop_counter__+buffer_size);
+                    element.id.store(static_cast<size_type>(pop_counter__+buffer_size));
                     return true;
                 }else{
+                    // if (pop_counter__ == 255){
+                    //     std::cout<<std::endl<<"if (pop_counter_.compare_exchange_weak(pop_counter__, pop_counter__+1)){";
+                    // }
                     return false;
                 }
             }else{
+                // if (pop_counter__ == 255){
+                //     std::cout<<std::endl<<"if (element.id.load() == pop_counter__+1){"<<static_cast<std::size_t>(element.id.load())<<static_cast<std::size_t>(pop_counter__)<<
+                //         typeid(pop_counter__).name()<<typeid(size_type{1}).name()<<typeid(pop_counter__+size_type{1}).name()<<typeid(cc+ccc).name();
+                // }
                 return false;
             }
 
@@ -298,9 +305,10 @@ public:
     }
     auto debug_to_str(){
         auto res = std::stringstream{};
-        res<<std::endl<<push_counter_.load()<<" "<<index(push_counter_.load())<<" "<<pop_counter_.load()<<" "<<index(pop_counter_.load())<<std::endl;
+        res<<std::endl<<static_cast<std::size_t>(push_counter_.load())<<" "<<index(push_counter_.load())<<" "<<
+            static_cast<std::size_t>(pop_counter_.load())<<" "<<index(pop_counter_.load())<<std::endl;
         for (const element& i : elements_){
-            res<<i.value<<" "<<i.state.load()<<",";
+            res<<i.value<<" "<<static_cast<std::size_t>(i.id.load())<<",";
         }
         return res.str();
     }
