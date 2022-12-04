@@ -351,13 +351,8 @@ private:
     };
 
     void init(){
-        size_type i{0};
-        while(true){
+        for (size_type i{0}; i!=buffer_size; ++i){
             elements_[i].id.store(i);
-            if (i==buffer_size-1){
-                break;
-            }
-            ++i;
         }
     }
 
