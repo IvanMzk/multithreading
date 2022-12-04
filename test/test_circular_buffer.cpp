@@ -25,6 +25,12 @@ constexpr auto make_ranges(){
     return make_ranges_helper<N,N_groups>::make_ranges(std::make_index_sequence<N_groups+1>{});
 }
 
+template<typename T, T...I>
+auto test_integer_sequence(std::integer_sequence<T,I...> s){
+    std::cout<<std::endl<<sizeof...(I)<<s.size();
+}
+
+
 }   //end of namespace test_circular_buffer
 
 TEST_CASE("test_make_ranges","test_make_ranges"){
@@ -186,15 +192,17 @@ TEST_CASE("test_mpmc_circular_buffer_multithread","[test_circular_buffer]"){
     using test_circular_buffer::make_ranges;
     static constexpr std::size_t n_producers = 10;
     static constexpr std::size_t n_consumers = 10;
-    static constexpr std::size_t buffer_size = 64;
+    static constexpr std::size_t buffer_size = 100;
     //static constexpr std::size_t n_elements = 1000;
     static constexpr std::size_t n_elements = 1024*1024;
-    //static constexpr std::size_t n_elements = 1024;
+    //static constexpr std::size_t n_elements = 128*1024;
     //using buffer_type = experimental_multithreading::mpmc_circular_buffer<value_type, buffer_size>;
     //using buffer_type = experimental_multithreading::mpmc_lock_free_circular_buffer_v1<value_type, buffer_size>;
     //using buffer_type = experimental_multithreading::mpmc_lock_free_circular_buffer_v1<value_type, buffer_size, unsigned char>;
-    using buffer_type = experimental_multithreading::mpmc_lock_free_circular_buffer_v2<value_type, buffer_size, unsigned char>;
+    //using buffer_type = experimental_multithreading::mpmc_lock_free_circular_buffer_v2<value_type, buffer_size, unsigned char>;
+    using buffer_type = experimental_multithreading::mpmc_lock_free_circular_buffer_v2<value_type, buffer_size>;
     //using buffer_type = experimental_multithreading::spsc_circular_buffer<value_type, buffer_size>;
+
     buffer_type buffer{};
     std::vector<value_type> expected(n_elements);
     for (std::size_t i{0}; i!=n_elements; ++i){
@@ -263,7 +271,9 @@ TEST_CASE("test_mpmc_circular_buffer_multithread","[test_circular_buffer]"){
     std::for_each(consumers.begin(),consumers.end(),[](auto& t){t.join();});
     std::cout<<std::endl<<"consumers_counter"<<consumer_counter.load();
 
-    REQUIRE(std::set<value_type>(expected.begin(),expected.end()) == std::set<value_type>(result.begin(),result.end()));
+    std::set<value_type> expected_(expected.begin(),expected.end());
+    std::set<value_type> result_(result.begin(),result.end());
+    REQUIRE(result_ == expected_);
     REQUIRE(buffer.size() == 0);
 }
 

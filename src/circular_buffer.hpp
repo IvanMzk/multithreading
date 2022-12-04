@@ -232,26 +232,29 @@ private:
 template<typename T, std::size_t N, typename SizeT = std::size_t>
 class mpmc_lock_free_circular_buffer_v2
 {
+    static constexpr SizeT size_type_max{std::numeric_limits<SizeT>::max()};
+    static constexpr SizeT counter_max{static_cast<SizeT>(size_type_max%N == N-1 ? size_type_max : (size_type_max/N)*N - 1)};
+    static_assert(counter_max > N-1);
+    static_assert(std::is_unsigned_v<SizeT>);
 public:
-    static constexpr std::size_t buffer_size = N;
     using size_type = SizeT;
     using value_type = T;
-    static_assert(std::numeric_limits<size_type>::max() >= N);
+    static constexpr size_type buffer_size = N;
 
-    mpmc_lock_free_circular_buffer_v2():
-        elements_{make_elements(std::make_integer_sequence<size_type, buffer_size>{})},
-        push_counter_{0},
-        pop_counter_{0}
-    {}
+    mpmc_lock_free_circular_buffer_v2()
+    {
+        init();
+    }
 
     bool try_push(const value_type& v){
         if (!debug_stop_.load()){
             auto push_counter__ = push_counter_.load();
             auto& element = elements_[index(push_counter__)];
             if (element.id.load() == push_counter__){ //buffer overwrite protection
-                if (push_counter_.compare_exchange_weak(push_counter__, static_cast<size_type>(push_counter__+1))){
+                auto new_push_counter = counter_inc(push_counter__);
+                if (push_counter_.compare_exchange_weak(push_counter__, new_push_counter)){
                     element.value = v;
-                    element.id.store(static_cast<size_type>(push_counter__+1));
+                    element.id.store(new_push_counter);
                     return true;
                 }else{
                     return false;
@@ -259,7 +262,6 @@ public:
             }else{
                 return false;
             }
-
         }else{
             return false;
         }
@@ -269,10 +271,11 @@ public:
         if (!debug_stop_.load()){
             auto pop_counter__ = pop_counter_.load();
             auto& element = elements_[index(pop_counter__)];
-            if (element.id.load() == static_cast<size_type>(pop_counter__+1)){
-                if (pop_counter_.compare_exchange_weak(pop_counter__, static_cast<size_type>(pop_counter__+1))){
+            auto new_pop_counter{counter_inc(pop_counter__)};
+            if (element.id.load() == new_pop_counter){
+                if (pop_counter_.compare_exchange_weak(pop_counter__, new_pop_counter)){
                     v = element.value;
-                    element.id.store(static_cast<size_type>(pop_counter__+buffer_size));
+                    element.id.store(counter_add_buffer_size(pop_counter__));
                     return true;
                 }else{
                     // if (pop_counter__ == 255){
@@ -320,26 +323,49 @@ public:
     }
 
 private:
+    size_type(*counter_inc)(size_type) = counter_inc_<counter_max>;
+    size_type(*counter_add_buffer_size)(size_type) = counter_add_buffer_size_<counter_max>;
+
+    template<size_type CounterMax>
+    static auto counter_inc_(size_type c){
+        return static_cast<size_type>(c==CounterMax ? 0 : c+1);
+    }
+    template<>
+    static auto counter_inc_<size_type_max>(size_type c){
+        return static_cast<size_type>(c+1);
+    }
+    template<size_type CounterMax>
+    static auto counter_add_buffer_size_(size_type c){
+        auto d = CounterMax - c;
+        return static_cast<size_type>(d < buffer_size ? buffer_size-1-d : c+buffer_size);
+    }
+    template<>
+    static auto counter_add_buffer_size_<size_type_max>(size_type c){
+        return static_cast<size_type>(c+buffer_size);
+    }
+
     struct element
     {
-        element(size_type i):
-            value{},
-            id{i}
-        {}
-        value_type value;
-        std::atomic<size_type> id;
+        value_type value{};
+        std::atomic<size_type> id{};
     };
 
-    template<size_type I>
-    auto make_element()const{return element{I};}
-    template<size_type...I>
-    auto make_elements(std::integer_sequence<size_type, I...>){return std::array<element, sizeof...(I)>{make_element<I>()...};}
+    void init(){
+        size_type i{0};
+        while(true){
+            elements_[i].id.store(i);
+            if (i==buffer_size-1){
+                break;
+            }
+            ++i;
+        }
+    }
 
     auto index(size_type c)const{return c%(buffer_size);}
 
-    std::array<element,buffer_size> elements_;
-    std::atomic<size_type> push_counter_;
-    std::atomic<size_type> pop_counter_;
+    std::array<element,buffer_size> elements_{};
+    std::atomic<size_type> push_counter_{0};
+    std::atomic<size_type> pop_counter_{0};
     std::atomic<bool> debug_stop_{false};
 };
 
