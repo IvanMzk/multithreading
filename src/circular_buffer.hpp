@@ -71,27 +71,75 @@ public:
     using value_type = T;
     mpmc_circular_buffer() = default;
 
+    // bool try_push(const value_type& v){
+    //     if(push_guard.try_lock())
+    //     {
+    //         auto push_index__ = push_index_.load();
+    //         bool is_full{index(push_index__+1)==pop_index_.load()};
+    //         if (!is_full){
+    //             elements_[push_index__] = v;
+    //             push_index_.store(index(push_index__+1));
+    //             push_guard.unlock();
+    //             return true;
+    //         }else{
+    //             push_guard.unlock();
+    //             return false;
+    //         }
+    //     }else{
+    //         return false;
+    //     }
+    // }
+
+    // bool try_pop(value_type& v){
+    //     if(pop_guard.try_lock())
+    //     {
+    //         auto pop_index__ = pop_index_.load();
+    //         bool is_empty{push_index_.load() == pop_index__};
+    //         if (!is_empty){
+    //             v = elements_[pop_index_];
+    //             pop_index_.store(index(pop_index__+1));
+    //             pop_guard.unlock();
+    //             return true;
+    //         }else{
+    //             pop_guard.unlock();
+    //             return false;
+    //         }
+    //     }else{
+    //         return false;
+    //     }
+    // }
+
     bool try_push(const value_type& v){
-        std::unique_lock<mutex_type> lock{push_guard};
-        auto push_index__ = push_index_.load();
-        bool is_full{index(push_index__+1)==pop_index_.load()};
-        if (!is_full){
-            elements_[push_index__] = v;
-            push_index_.store(index(push_index__+1));
-            return true;
+        auto lock = std::unique_lock<mutex_type>{push_guard, std::try_to_lock};
+        if(lock)
+        {
+            auto push_index__ = push_index_.load();
+            bool is_full{index(push_index__+1)==pop_index_.load()};
+            if (!is_full){
+                elements_[push_index__] = v;
+                push_index_.store(index(push_index__+1));
+                return true;
+            }else{
+                return false;
+            }
         }else{
             return false;
         }
     }
 
     bool try_pop(value_type& v){
-        std::unique_lock<mutex_type> lock{pop_guard};
-        auto pop_index__ = pop_index_.load();
-        bool is_empty{push_index_.load() == pop_index__};
-        if (!is_empty){
-            v = elements_[pop_index_];
-            pop_index_.store(index(pop_index__+1));
-            return true;
+        auto lock = std::unique_lock<mutex_type>{pop_guard, std::try_to_lock};
+        if(lock)
+        {
+            auto pop_index__ = pop_index_.load();
+            bool is_empty{push_index_.load() == pop_index__};
+            if (!is_empty){
+                v = elements_[pop_index_];
+                pop_index_.store(index(pop_index__+1));
+                return true;
+            }else{
+                return false;
+            }
         }else{
             return false;
         }
@@ -226,8 +274,7 @@ private:
 
 
 /*
-* if buffer_size is power of two counter overflow is safe, can use any unsigned size_type
-* if buffer_size is not power of two counter overflow leads to deadlock, should use the largest possible atomic type
+* counter overflow safe and buffer size may be not pow of 2
 */
 template<typename T, std::size_t N, typename SizeT = std::size_t>
 class mpmc_lock_free_circular_buffer_v2
@@ -323,6 +370,7 @@ public:
     }
 
 private:
+    auto index(size_type c)const{return c%(buffer_size);}
     size_type(*counter_inc)(size_type) = counter_inc_<counter_max>;
     size_type(*counter_add_buffer_size)(size_type) = counter_add_buffer_size_<counter_max>;
 
@@ -356,13 +404,114 @@ private:
         }
     }
 
-    auto index(size_type c)const{return c%(buffer_size);}
 
     std::array<element,buffer_size> elements_{};
     std::atomic<size_type> push_counter_{0};
     std::atomic<size_type> pop_counter_{0};
     std::atomic<bool> debug_stop_{false};
 };
+
+template<typename T, std::size_t N, typename SizeT = std::size_t>
+class mpmc_lock_free_circular_buffer_v3
+{
+    static constexpr SizeT size_type_max{std::numeric_limits<SizeT>::max()};
+    static constexpr SizeT counter_max{static_cast<SizeT>(size_type_max%(N+1) == N ? size_type_max : (size_type_max/(N+1))*(N+1) - 1)};
+    static_assert(counter_max > N);
+    static_assert(std::is_unsigned_v<SizeT>);
+public:
+    using size_type = SizeT;
+    using value_type = T;
+    static constexpr size_type buffer_size = N;
+
+    mpmc_lock_free_circular_buffer_v3()
+    {}
+
+    bool try_push(const value_type& v){
+        if (!debug_stop_.load()){
+            auto push_reserve_counter__ = push_reserve_counter_.load();
+            auto next_push_reserve_counter = inc_counter(push_reserve_counter__);
+            if (index(pop_counter_.load()) == index(next_push_reserve_counter)){  //full
+                return false;
+            }else{
+                if (push_reserve_counter_.compare_exchange_weak(push_reserve_counter__, next_push_reserve_counter)){
+                    elements_[index(push_reserve_counter__)] = v;
+                    while(push_counter_.load() != push_reserve_counter__){};//wait for prev pushes
+                    push_counter_.store(next_push_reserve_counter);
+                    return true;
+                }else{
+                    return false;
+                }
+            }
+        }else{
+            return false;
+        }
+    }
+
+    bool try_pop(value_type& v){
+        if (!debug_stop_.load()){
+            auto pop_reserve_counter__ = pop_reserve_counter_.load();
+            auto next_pop_reserve_counter = inc_counter(pop_reserve_counter__);
+            if (push_counter_.load() == pop_reserve_counter__){   //empty
+                return false;
+            }else{
+                if (pop_reserve_counter_.compare_exchange_weak(pop_reserve_counter__, next_pop_reserve_counter)){
+                    v = elements_[index(pop_reserve_counter__)];
+                    while(pop_counter_.load() != pop_reserve_counter__){};//wait for prev pops
+                    pop_counter_.store(next_pop_reserve_counter);
+                    return true;
+                }else{
+                    return false;
+                }
+            }
+        }else{
+            return false;
+        }
+    }
+
+    void push(const value_type& v){
+
+    }
+
+    auto pop(){
+
+    }
+
+    auto size()const{return push_counter_.load() - pop_counter_.load();}
+
+    void debug_stop(){
+        debug_stop_.store(true);
+    }
+    void debug_start(){
+        debug_stop_.store(false);
+    }
+    auto debug_to_str(){
+        auto res = std::stringstream{};
+        res<<std::endl<<static_cast<std::size_t>(push_counter_.load())<<" "<<static_cast<std::size_t>(push_reserve_counter_.load())<<" "<<
+            static_cast<std::size_t>(pop_counter_.load())<<" "<<static_cast<std::size_t>(pop_reserve_counter_.load())<<std::endl;
+        for (const auto& i : elements_){
+            res<<i<<",";
+        }
+        return res.str();
+    }
+
+private:
+
+    auto index(size_type c)const{return c%(buffer_size+1);}
+    size_type(*inc_counter)(size_type) = inc_counter_<counter_max>;
+    template<size_type CounterMax>
+    static auto inc_counter_(size_type c){return static_cast<size_type>(c==CounterMax ? 0 : c+1);}
+    template<>
+    static auto inc_counter_<size_type_max>(size_type c){return static_cast<size_type>(c+1);}
+
+    std::array<value_type, buffer_size+1> elements_{};
+    std::atomic<size_type> push_counter_{0};
+    std::atomic<size_type> push_reserve_counter_{0};
+    std::atomic<size_type> pop_counter_{0};
+    std::atomic<size_type> pop_reserve_counter_{0};
+    std::atomic<bool> debug_stop_{false};
+};
+
+
 
 }   //end of namespace experimental_multithreading
 
