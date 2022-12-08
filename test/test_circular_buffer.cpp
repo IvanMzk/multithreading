@@ -160,14 +160,14 @@ TEST_CASE("test_mpmc_circular_buffer_multithread","[test_circular_buffer]"){
     using benchmark_helpers::make_ranges;
     static constexpr std::size_t n_producers = 10;
     static constexpr std::size_t n_consumers = 10;
-    static constexpr std::size_t buffer_size = 256;
+    static constexpr std::size_t buffer_size = 10;
     //static constexpr std::size_t n_elements = 1000;
-    static constexpr std::size_t n_elements = 100*1024*1024;
+    static constexpr std::size_t n_elements = 10*1024*1024;
     //static constexpr std::size_t n_elements = 128*1024;
-    using buffer_type = experimental_multithreading::mpmc_circular_buffer<value_type, buffer_size>;
+    //using buffer_type = experimental_multithreading::mpmc_circular_buffer<value_type, buffer_size>;
     //using buffer_type = experimental_multithreading::mpmc_lock_free_circular_buffer_v1<value_type, buffer_size>;
     //using buffer_type = experimental_multithreading::mpmc_lock_free_circular_buffer_v1<value_type, buffer_size, unsigned char>;
-    //using buffer_type = experimental_multithreading::mpmc_lock_free_circular_buffer_v2<value_type, buffer_size, unsigned char>;
+    using buffer_type = experimental_multithreading::mpmc_lock_free_circular_buffer_v2<value_type, buffer_size, unsigned char>;
     //using buffer_type = experimental_multithreading::mpmc_lock_free_circular_buffer_v2<value_type, buffer_size, std::uint16_t>;
     //using buffer_type = experimental_multithreading::mpmc_lock_free_circular_buffer_v2<value_type, buffer_size>;
     //using buffer_type = experimental_multithreading::mpmc_lock_free_circular_buffer_v3<value_type, buffer_size, unsigned char>;
@@ -194,7 +194,7 @@ TEST_CASE("test_mpmc_circular_buffer_multithread","[test_circular_buffer]"){
                 producer_counter.fetch_add(1);
             }
         );
-        std::cout<<std::endl<<"producer"<<producer_id<<"complete";
+        //std::cout<<std::endl<<"producer"<<producer_id<<"complete";
     };
 
     std::atomic<std::size_t> consumer_counter{0};
@@ -263,8 +263,6 @@ TEST_CASE("test_mpmc_circular_buffer_multithread","[test_circular_buffer]"){
     std::for_each(consumers.begin(),consumers.end(),[](auto& t){t.join();});
     std::cout<<std::endl<<"consumers_counter"<<consumer_counter.load();
 
-    // std::set<value_type> expected_(expected.begin(),expected.end());
-    // std::set<value_type> result_(result.begin(),result.end());
     std::sort(result.begin(),result.end());
 
     REQUIRE(result.size() == expected.size());

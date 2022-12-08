@@ -16,15 +16,18 @@ TEST_CASE("test_make_ranges","test_make_ranges"){
 
 namespace benchmark_mpmc_circular_buffer{
     using value_type = float;
-    static constexpr std::size_t n_elements = 100*1024*1024;
+    static constexpr std::size_t n_elements = 10*1024*1024;
     static constexpr std::size_t buffer_size = 64;
     //static constexpr std::size_t buffer_size = 256;
 }
 
 TEMPLATE_TEST_CASE("benchmark_mpmc_circular_buffer","[benchmark_mpmc_circular_buffer]",
-    (experimental_multithreading::mpmc_circular_buffer<benchmark_mpmc_circular_buffer::value_type, benchmark_mpmc_circular_buffer::buffer_size>),
+    //(experimental_multithreading::mpmc_circular_buffer<benchmark_mpmc_circular_buffer::value_type, benchmark_mpmc_circular_buffer::buffer_size>),
     (experimental_multithreading::mpmc_lock_free_circular_buffer_v2<benchmark_mpmc_circular_buffer::value_type, benchmark_mpmc_circular_buffer::buffer_size>),
-    (experimental_multithreading::mpmc_lock_free_circular_buffer_v3<benchmark_mpmc_circular_buffer::value_type, benchmark_mpmc_circular_buffer::buffer_size>)
+    (experimental_multithreading::mpmc_lock_free_circular_buffer_v2_cas_loop<benchmark_mpmc_circular_buffer::value_type, benchmark_mpmc_circular_buffer::buffer_size>),
+    (experimental_multithreading::mpmc_lock_free_circular_buffer_v2_cas_loop_aligned_counters<benchmark_mpmc_circular_buffer::value_type, benchmark_mpmc_circular_buffer::buffer_size>),
+    (experimental_multithreading::mpmc_lock_free_circular_buffer_v2_cas_loop_aligned_counters_elements<benchmark_mpmc_circular_buffer::value_type, benchmark_mpmc_circular_buffer::buffer_size>)
+    //(experimental_multithreading::mpmc_lock_free_circular_buffer_v3<benchmark_mpmc_circular_buffer::value_type, benchmark_mpmc_circular_buffer::buffer_size>)
 )
 {
     using benchmark_helpers::make_ranges;

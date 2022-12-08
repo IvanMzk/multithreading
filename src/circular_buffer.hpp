@@ -325,30 +325,14 @@ public:
                     element.id.store(counter_add_buffer_size(pop_counter__));
                     return true;
                 }else{
-                    // if (pop_counter__ == 255){
-                    //     std::cout<<std::endl<<"if (pop_counter_.compare_exchange_weak(pop_counter__, pop_counter__+1)){";
-                    // }
                     return false;
                 }
             }else{
-                // if (pop_counter__ == 255){
-                //     std::cout<<std::endl<<"if (element.id.load() == pop_counter__+1){"<<static_cast<std::size_t>(element.id.load())<<static_cast<std::size_t>(pop_counter__)<<
-                //         typeid(pop_counter__).name()<<typeid(size_type{1}).name()<<typeid(pop_counter__+size_type{1}).name()<<typeid(cc+ccc).name();
-                // }
                 return false;
             }
-
         }else{
             return false;
         }
-    }
-
-    void push(const value_type& v){
-
-    }
-
-    auto pop(){
-
     }
 
     auto size()const{return push_counter_.load() - pop_counter_.load();}
@@ -404,10 +388,390 @@ private:
         }
     }
 
+    std::array<element,buffer_size> elements_{};
+    std::atomic<size_type> push_counter_{0};
+    std::atomic<size_type> pop_counter_{0};
+    std::atomic<bool> debug_stop_{false};
+};
+
+template<typename T, std::size_t N, typename SizeT = std::size_t>
+class mpmc_lock_free_circular_buffer_v2_cas_loop
+{
+    static constexpr SizeT size_type_max{std::numeric_limits<SizeT>::max()};
+    static constexpr SizeT counter_max{static_cast<SizeT>(size_type_max%N == N-1 ? size_type_max : (size_type_max/N)*N - 1)};
+    static_assert(counter_max > N-1);
+    static_assert(std::is_unsigned_v<SizeT>);
+public:
+    using size_type = SizeT;
+    using value_type = T;
+    static constexpr size_type buffer_size = N;
+
+    mpmc_lock_free_circular_buffer_v2_cas_loop()
+    {
+        init();
+    }
+
+    bool try_push(const value_type& v){
+        if (!debug_stop_.load()){
+            auto push_counter__ = push_counter_.load();
+            while(true){
+                auto& element = elements_[index(push_counter__)];
+                auto id = element.id.load();
+                if (id == push_counter__){ //buffer overwrite protection
+                    auto new_push_counter = counter_inc(push_counter__);
+                    if (push_counter_.compare_exchange_weak(push_counter__, new_push_counter)){
+                        element.value = v;
+                        element.id.store(new_push_counter);
+                        return true;
+                    }
+                }else if (id < push_counter__){//queue full, exit
+                    return false;
+                }else{//element full, try next
+                    push_counter__ = push_counter_.load();
+                }
+            }
+        }else{
+            return false;
+        }
+    }
+
+    bool try_pop(value_type& v){
+        if (!debug_stop_.load()){
+            auto pop_counter__ = pop_counter_.load();
+            while(true){
+                auto& element = elements_[index(pop_counter__)];
+                auto new_pop_counter{counter_inc(pop_counter__)};
+                auto id = element.id.load();
+                if (id == new_pop_counter){
+                    if (pop_counter_.compare_exchange_weak(pop_counter__, new_pop_counter)){//pop_counter__ updated when fails
+                        v = element.value;
+                        element.id.store(counter_add_buffer_size(pop_counter__));
+                        return true;
+                    }
+                }else if (id < new_pop_counter){//queue empty, exit
+                    return false;
+                }else{//element empty, try next
+                    pop_counter__ = pop_counter_.load();
+                }
+            }
+        }else{
+            return false;
+        }
+    }
+
+    auto size()const{return push_counter_.load() - pop_counter_.load();}
+
+    void debug_stop(){
+        debug_stop_.store(true);
+    }
+    void debug_start(){
+        debug_stop_.store(false);
+    }
+    auto debug_to_str(){
+        auto res = std::stringstream{};
+        res<<std::endl<<static_cast<std::size_t>(push_counter_.load())<<" "<<index(push_counter_.load())<<" "<<
+            static_cast<std::size_t>(pop_counter_.load())<<" "<<index(pop_counter_.load())<<std::endl;
+        for (const element& i : elements_){
+            res<<i.value<<" "<<static_cast<std::size_t>(i.id.load())<<",";
+        }
+        return res.str();
+    }
+
+private:
+    auto index(size_type c)const{return c%(buffer_size);}
+    size_type(*counter_inc)(size_type) = counter_inc_<counter_max>;
+    size_type(*counter_add_buffer_size)(size_type) = counter_add_buffer_size_<counter_max>;
+
+    template<size_type CounterMax>
+    static auto counter_inc_(size_type c){
+        return static_cast<size_type>(c==CounterMax ? 0 : c+1);
+    }
+    template<>
+    static auto counter_inc_<size_type_max>(size_type c){
+        return static_cast<size_type>(c+1);
+    }
+    template<size_type CounterMax>
+    static auto counter_add_buffer_size_(size_type c){
+        auto d = CounterMax - c;
+        return static_cast<size_type>(d < buffer_size ? buffer_size-1-d : c+buffer_size);
+    }
+    template<>
+    static auto counter_add_buffer_size_<size_type_max>(size_type c){
+        return static_cast<size_type>(c+buffer_size);
+    }
+
+    struct element
+    {
+        value_type value{};
+        std::atomic<size_type> id{};
+    };
+
+    void init(){
+        for (size_type i{0}; i!=buffer_size; ++i){
+            elements_[i].id.store(i);
+        }
+    }
 
     std::array<element,buffer_size> elements_{};
     std::atomic<size_type> push_counter_{0};
     std::atomic<size_type> pop_counter_{0};
+    std::atomic<bool> debug_stop_{false};
+};
+
+template<typename T, std::size_t N, typename SizeT = std::size_t>
+class mpmc_lock_free_circular_buffer_v2_cas_loop_aligned_counters
+{
+    static constexpr SizeT size_type_max{std::numeric_limits<SizeT>::max()};
+    static constexpr SizeT counter_max{static_cast<SizeT>(size_type_max%N == N-1 ? size_type_max : (size_type_max/N)*N - 1)};
+    static_assert(counter_max > N-1);
+    static_assert(std::is_unsigned_v<SizeT>);
+    static constexpr std::size_t hardware_destructive_interference_size = std::hardware_destructive_interference_size;
+public:
+    using size_type = SizeT;
+    using value_type = T;
+    static constexpr size_type buffer_size = N;
+
+    mpmc_lock_free_circular_buffer_v2_cas_loop_aligned_counters()
+    {
+        static constexpr std::size_t push_counter_offset = offsetof(mpmc_lock_free_circular_buffer_v2_cas_loop_aligned_counters, push_counter_);
+        static constexpr std::size_t pop_counter_offset = offsetof(mpmc_lock_free_circular_buffer_v2_cas_loop_aligned_counters, pop_counter_);
+        static_assert(std::max(push_counter_offset,pop_counter_offset) - std::min(push_counter_offset,pop_counter_offset) >= hardware_destructive_interference_size);
+        init();
+    }
+
+    bool try_push(const value_type& v){
+        if (!debug_stop_.load()){
+            auto push_counter__ = push_counter_.load();
+            while(true){
+                auto& element = elements_[index(push_counter__)];
+                auto id = element.id.load();
+                if (id == push_counter__){ //buffer overwrite protection
+                    auto new_push_counter = counter_inc(push_counter__);
+                    if (push_counter_.compare_exchange_weak(push_counter__, new_push_counter)){
+                        element.value = v;
+                        element.id.store(new_push_counter);
+                        return true;
+                    }
+                }else if (id < push_counter__){//queue full, exit
+                    return false;
+                }else{//element full, try next
+                    push_counter__ = push_counter_.load();
+                }
+            }
+        }else{
+            return false;
+        }
+    }
+
+    bool try_pop(value_type& v){
+        if (!debug_stop_.load()){
+            auto pop_counter__ = pop_counter_.load();
+            while(true){
+                auto& element = elements_[index(pop_counter__)];
+                auto new_pop_counter{counter_inc(pop_counter__)};
+                auto id = element.id.load();
+                if (id == new_pop_counter){
+                    if (pop_counter_.compare_exchange_weak(pop_counter__, new_pop_counter)){//pop_counter__ updated when fails
+                        v = element.value;
+                        element.id.store(counter_add_buffer_size(pop_counter__));
+                        return true;
+                    }
+                }else if (id < new_pop_counter){//queue empty, exit
+                    return false;
+                }else{//element empty, try next
+                    pop_counter__ = pop_counter_.load();
+                }
+            }
+        }else{
+            return false;
+        }
+    }
+
+    auto size()const{return push_counter_.load() - pop_counter_.load();}
+
+    void debug_stop(){
+        debug_stop_.store(true);
+    }
+    void debug_start(){
+        debug_stop_.store(false);
+    }
+    auto debug_to_str(){
+        auto res = std::stringstream{};
+        res<<std::endl<<static_cast<std::size_t>(push_counter_.load())<<" "<<index(push_counter_.load())<<" "<<
+            static_cast<std::size_t>(pop_counter_.load())<<" "<<index(pop_counter_.load())<<std::endl;
+        for (const element& i : elements_){
+            res<<i.value<<" "<<static_cast<std::size_t>(i.id.load())<<",";
+        }
+        return res.str();
+    }
+
+private:
+    auto index(size_type c)const{return c%(buffer_size);}
+    size_type(*counter_inc)(size_type) = counter_inc_<counter_max>;
+    size_type(*counter_add_buffer_size)(size_type) = counter_add_buffer_size_<counter_max>;
+
+    template<size_type CounterMax>
+    static auto counter_inc_(size_type c){
+        return static_cast<size_type>(c==CounterMax ? 0 : c+1);
+    }
+    template<>
+    static auto counter_inc_<size_type_max>(size_type c){
+        return static_cast<size_type>(c+1);
+    }
+    template<size_type CounterMax>
+    static auto counter_add_buffer_size_(size_type c){
+        auto d = CounterMax - c;
+        return static_cast<size_type>(d < buffer_size ? buffer_size-1-d : c+buffer_size);
+    }
+    template<>
+    static auto counter_add_buffer_size_<size_type_max>(size_type c){
+        return static_cast<size_type>(c+buffer_size);
+    }
+
+    struct element
+    {
+        value_type value{};
+        std::atomic<size_type> id{};
+    };
+
+    void init(){
+        for (size_type i{0}; i!=buffer_size; ++i){
+            elements_[i].id.store(i);
+        }
+    }
+
+    std::array<element,buffer_size> elements_{};
+    alignas(hardware_destructive_interference_size) std::atomic<size_type> push_counter_{0};
+    alignas(hardware_destructive_interference_size) std::atomic<size_type> pop_counter_{0};
+    std::atomic<bool> debug_stop_{false};
+};
+
+template<typename T, std::size_t N, typename SizeT = std::size_t>
+class mpmc_lock_free_circular_buffer_v2_cas_loop_aligned_counters_elements
+{
+    static constexpr SizeT size_type_max{std::numeric_limits<SizeT>::max()};
+    static constexpr SizeT counter_max{static_cast<SizeT>(size_type_max%N == N-1 ? size_type_max : (size_type_max/N)*N - 1)};
+    static_assert(counter_max > N-1);
+    static_assert(std::is_unsigned_v<SizeT>);
+    static constexpr std::size_t hardware_destructive_interference_size = std::hardware_destructive_interference_size;
+public:
+    using size_type = SizeT;
+    using value_type = T;
+    static constexpr size_type buffer_size = N;
+
+    mpmc_lock_free_circular_buffer_v2_cas_loop_aligned_counters_elements()
+    {
+        static constexpr std::size_t push_counter_offset = offsetof(mpmc_lock_free_circular_buffer_v2_cas_loop_aligned_counters_elements, push_counter_);
+        static constexpr std::size_t pop_counter_offset = offsetof(mpmc_lock_free_circular_buffer_v2_cas_loop_aligned_counters_elements, pop_counter_);
+        static_assert(std::max(push_counter_offset,pop_counter_offset) - std::min(push_counter_offset,pop_counter_offset) >= hardware_destructive_interference_size);
+        static_assert(alignof(element) == hardware_destructive_interference_size);
+        init();
+    }
+
+    bool try_push(const value_type& v){
+        if (!debug_stop_.load()){
+            auto push_counter__ = push_counter_.load();
+            while(true){
+                auto& element = elements_[index(push_counter__)];
+                auto id = element.id.load();
+                if (id == push_counter__){ //buffer overwrite protection
+                    auto new_push_counter = counter_inc(push_counter__);
+                    if (push_counter_.compare_exchange_weak(push_counter__, new_push_counter)){
+                        element.value = v;
+                        element.id.store(new_push_counter);
+                        return true;
+                    }
+                }else if (id < push_counter__){//queue full, exit
+                    return false;
+                }else{//element full, try next
+                    push_counter__ = push_counter_.load();
+                }
+            }
+        }else{
+            return false;
+        }
+    }
+
+    bool try_pop(value_type& v){
+        if (!debug_stop_.load()){
+            auto pop_counter__ = pop_counter_.load();
+            while(true){
+                auto& element = elements_[index(pop_counter__)];
+                auto new_pop_counter{counter_inc(pop_counter__)};
+                auto id = element.id.load();
+                if (id == new_pop_counter){
+                    if (pop_counter_.compare_exchange_weak(pop_counter__, new_pop_counter)){//pop_counter__ updated when fails
+                        v = element.value;
+                        element.id.store(counter_add_buffer_size(pop_counter__));
+                        return true;
+                    }
+                }else if (id < new_pop_counter){//queue empty, exit
+                    return false;
+                }else{//element empty, try next
+                    pop_counter__ = pop_counter_.load();
+                }
+            }
+        }else{
+            return false;
+        }
+    }
+
+    auto size()const{return push_counter_.load() - pop_counter_.load();}
+
+    void debug_stop(){
+        debug_stop_.store(true);
+    }
+    void debug_start(){
+        debug_stop_.store(false);
+    }
+    auto debug_to_str(){
+        auto res = std::stringstream{};
+        res<<std::endl<<static_cast<std::size_t>(push_counter_.load())<<" "<<index(push_counter_.load())<<" "<<
+            static_cast<std::size_t>(pop_counter_.load())<<" "<<index(pop_counter_.load())<<std::endl;
+        for (const element& i : elements_){
+            res<<i.value<<" "<<static_cast<std::size_t>(i.id.load())<<",";
+        }
+        return res.str();
+    }
+
+private:
+    auto index(size_type c)const{return c%(buffer_size);}
+    size_type(*counter_inc)(size_type) = counter_inc_<counter_max>;
+    size_type(*counter_add_buffer_size)(size_type) = counter_add_buffer_size_<counter_max>;
+
+    template<size_type CounterMax>
+    static auto counter_inc_(size_type c){
+        return static_cast<size_type>(c==CounterMax ? 0 : c+1);
+    }
+    template<>
+    static auto counter_inc_<size_type_max>(size_type c){
+        return static_cast<size_type>(c+1);
+    }
+    template<size_type CounterMax>
+    static auto counter_add_buffer_size_(size_type c){
+        auto d = CounterMax - c;
+        return static_cast<size_type>(d < buffer_size ? buffer_size-1-d : c+buffer_size);
+    }
+    template<>
+    static auto counter_add_buffer_size_<size_type_max>(size_type c){
+        return static_cast<size_type>(c+buffer_size);
+    }
+
+    struct alignas(hardware_destructive_interference_size) element
+    {
+        value_type value{};
+        std::atomic<size_type> id{};
+    };
+
+    void init(){
+        for (size_type i{0}; i!=buffer_size; ++i){
+            elements_[i].id.store(i);
+        }
+    }
+
+    std::array<element,buffer_size> elements_{};
+    alignas(hardware_destructive_interference_size) std::atomic<size_type> push_counter_{0};
+    alignas(hardware_destructive_interference_size) std::atomic<size_type> pop_counter_{0};
     std::atomic<bool> debug_stop_{false};
 };
 
