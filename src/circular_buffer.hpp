@@ -171,7 +171,6 @@ private:
 
 /*
 * use "epoch number" that is counter/buffer_size as protector from overwriting and read before write
-* not safe under counter overflow
 */
 template<typename T, std::size_t N, typename SizeT = std::size_t>
 class mpmc_lock_free_circular_buffer_v1
@@ -274,7 +273,7 @@ private:
 
 
 /*
-* counter overflow safe and buffer size may be not pow of 2
+* like v1 but use different protector calculation method
 */
 template<typename T, std::size_t N, typename SizeT = std::size_t>
 class mpmc_lock_free_circular_buffer_v2
@@ -300,7 +299,14 @@ public:
             if (element.id.load() == push_counter__){ //buffer overwrite protection
                 auto new_push_counter = counter_inc(push_counter__);
                 if (push_counter_.compare_exchange_weak(push_counter__, new_push_counter)){
+                    auto debug_push_counter_ = element.debug_push_counter.load();
+                    auto debug_pop_counter_ = element.debug_pop_counter.load();
+                    if (debug_push_counter_ != debug_pop_counter_){
+                        std::cout<<std::endl<<"buffer corruption detected! try_push "<<debug_push_counter_<<" "<<debug_pop_counter_<<" "
+                            <<static_cast<std::size_t>(push_counter__)<<" "<<static_cast<std::size_t>(new_push_counter);
+                    }
                     element.value = v;
+                    element.debug_push_counter.fetch_add(1);
                     element.id.store(new_push_counter);
                     return true;
                 }else{
@@ -321,7 +327,14 @@ public:
             auto new_pop_counter{counter_inc(pop_counter__)};
             if (element.id.load() == new_pop_counter){
                 if (pop_counter_.compare_exchange_weak(pop_counter__, new_pop_counter)){
+                    auto debug_push_counter_ = element.debug_push_counter.load();
+                    auto debug_pop_counter_ = element.debug_pop_counter.load();
+                    if (debug_push_counter_ != debug_pop_counter_+1){
+                        std::cout<<std::endl<<"buffer corruption detected! try_pop "<<debug_push_counter_<<" "<<debug_pop_counter_<<" "
+                            <<static_cast<std::size_t>(pop_counter__)<<" "<<static_cast<std::size_t>(new_pop_counter);
+                    }
                     v = element.value;
+                    element.debug_pop_counter.fetch_add(1);
                     element.id.store(counter_add_buffer_size(pop_counter__));
                     return true;
                 }else{
@@ -380,6 +393,8 @@ private:
     {
         value_type value{};
         std::atomic<size_type> id{};
+        std::atomic<std::size_t> debug_push_counter{};
+        std::atomic<std::size_t> debug_pop_counter{};
     };
 
     void init(){
@@ -775,6 +790,12 @@ private:
     std::atomic<bool> debug_stop_{false};
 };
 
+
+/*
+* use four pointers, two for push and two for pop
+* push_reserve, push
+* pop_reserve, pop
+*/
 template<typename T, std::size_t N, typename SizeT = std::size_t>
 class mpmc_lock_free_circular_buffer_v3
 {

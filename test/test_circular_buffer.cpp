@@ -160,9 +160,9 @@ TEST_CASE("test_mpmc_circular_buffer_multithread","[test_circular_buffer]"){
     using benchmark_helpers::make_ranges;
     static constexpr std::size_t n_producers = 10;
     static constexpr std::size_t n_consumers = 10;
-    static constexpr std::size_t buffer_size = 10;
+    static constexpr std::size_t buffer_size = 4;
     //static constexpr std::size_t n_elements = 1000;
-    static constexpr std::size_t n_elements = 10*1024*1024;
+    static constexpr std::size_t n_elements = 100*1024*1024;
     //static constexpr std::size_t n_elements = 128*1024;
     //using buffer_type = experimental_multithreading::mpmc_circular_buffer<value_type, buffer_size>;
     //using buffer_type = experimental_multithreading::mpmc_lock_free_circular_buffer_v1<value_type, buffer_size>;
