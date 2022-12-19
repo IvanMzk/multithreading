@@ -158,7 +158,7 @@ TEST_CASE("test_spsc_circular_buffer_multithread","[test_circular_buffer]"){
 
 namespace test_mpmc_circular_buffer_try_push_try_pop_multithread{
     using value_type = float;
-    static constexpr std::size_t n_elements = 100*1024*1024;
+    static constexpr std::size_t n_elements = 1*1024*1024;
     static constexpr std::size_t buffer_size = 64;
     //static constexpr std::size_t buffer_size = 256;
 }
