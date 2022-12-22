@@ -13,6 +13,7 @@ class mpmc_bounded_queue_v1
     static constexpr size_type buffer_capacity = N;
     static constexpr std::size_t hardware_destructive_interference_size = std::hardware_destructive_interference_size;
     static_assert(std::is_unsigned_v<size_type>);
+    static_assert(buffer_capacity > 1);
 public:
     using value_type = T;
 
@@ -25,7 +26,8 @@ public:
         init();
     }
 
-    bool try_push(const value_type& v){
+    template<typename...Args>
+    bool try_push(Args&&...args){
         auto push_counter__ = push_counter_.load(std::memory_order::memory_order_relaxed);
         while(true){
             auto& element = elements_[index(push_counter__)];
@@ -33,7 +35,7 @@ public:
             if (id == push_counter__){ //buffer overwrite protection
                 auto next_push_counter = push_counter__+1;
                 if (push_counter_.compare_exchange_weak(push_counter__, next_push_counter,std::memory_order::memory_order_relaxed)){
-                    element.value = v;
+                    element.emplace(std::forward<Args>(args)...);
                     element.id.store(next_push_counter, std::memory_order::memory_order_release);
                     return true;
                 }
@@ -53,7 +55,7 @@ public:
             auto id = element.id.load(std::memory_order::memory_order_acquire);
             if (id == next_pop_counter){
                 if (pop_counter_.compare_exchange_weak(pop_counter__, next_pop_counter, std::memory_order::memory_order_relaxed)){//pop_counter__ updated when fails
-                    v = element.value;
+                    v = element.get();
                     element.id.store(pop_counter__+buffer_capacity, std::memory_order::memory_order_release);
                     return true;
                 }
@@ -65,11 +67,12 @@ public:
         }
     }
 
-    void push(const value_type& v){
+    template<typename...Args>
+    void push(Args&&...args){
         auto push_counter__ = push_counter_.fetch_add(1, std::memory_order::memory_order_relaxed);  //reserve
         auto& element = elements_[index(push_counter__)];
         while(push_counter__ != element.id.load(std::memory_order::memory_order_acquire)){};   //wait until element is empty
-        element.value = v;
+        element.emplace(std::forward<Args>(args)...);
         element.id.store(push_counter__+1, std::memory_order::memory_order_release);
     }
 
@@ -78,7 +81,7 @@ public:
         auto next_pop_counter = pop_counter__+1;
         auto& element = elements_[index(pop_counter__)];
         while(next_pop_counter != element.id.load(std::memory_order::memory_order_acquire)){};  //wait until element is full
-        v = element.value;
+        v = element.get();
         element.id.store(pop_counter__+buffer_capacity, std::memory_order::memory_order_release);
     }
 
@@ -88,10 +91,18 @@ public:
 private:
     auto index(size_type c)const{return c%(buffer_capacity);}
 
-    struct element
+    class element
     {
-        value_type value{};
+        alignas(value_type) std::byte element_buffer[sizeof(value_type)];
+    public:
         alignas(hardware_destructive_interference_size) std::atomic<size_type> id{};
+        template<typename...Args>
+        void emplace(Args&&...args){
+            new(reinterpret_cast<void*>(element_buffer)) value_type{std::forward<Args>(args)...};
+        }
+        value_type&& get(){
+            return std::move(*reinterpret_cast<value_type*>(element_buffer));
+        }
     };
 
     void init(){
