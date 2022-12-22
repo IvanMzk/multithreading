@@ -89,7 +89,13 @@ public:
     constexpr size_type capacity()const{return buffer_capacity;}
 
 private:
-    auto index(size_type c)const{return c%(buffer_capacity);}
+
+    //use logical and for modulo if buffer_capacity is pow of 2
+    template<std::size_t>
+    static auto index_(size_type c){return c%(buffer_capacity);}
+    template<>
+    static auto index_<0>(size_type c){return c&(buffer_capacity-1);}
+    static constexpr size_type(*index)(size_type) = index_<buffer_capacity&(buffer_capacity-1)>;
 
     class element
     {

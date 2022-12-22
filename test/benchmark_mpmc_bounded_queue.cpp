@@ -20,11 +20,13 @@ namespace benchmark_mpmc_bounded_queue{
     using value_type = float;
     static constexpr std::size_t n_elements = 100*1024*1024;
     static constexpr std::size_t buffer_capacity = 64;
+    static constexpr std::size_t buffer_capacity_not_pow2 = 65;
     //static constexpr std::size_t buffer_size = 256;
 }
 
 TEMPLATE_TEST_CASE("benchmark_mpmc_bounded_queue","[benchmark_mpmc_bounded_queue]",
-    (mpmc_bounded_queue::mpmc_bounded_queue_v1<benchmark_mpmc_bounded_queue::value_type, benchmark_mpmc_bounded_queue::buffer_capacity>)
+    (mpmc_bounded_queue::mpmc_bounded_queue_v1<benchmark_mpmc_bounded_queue::value_type, benchmark_mpmc_bounded_queue::buffer_capacity>),
+    (mpmc_bounded_queue::mpmc_bounded_queue_v1<benchmark_mpmc_bounded_queue::value_type, benchmark_mpmc_bounded_queue::buffer_capacity_not_pow2>)
 )
 {
     using benchmark_helpers::make_ranges;

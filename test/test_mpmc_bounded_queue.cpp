@@ -123,7 +123,7 @@ TEMPLATE_TEST_CASE("test_mpmc_bounded_queue_full","[test_mpmc_bounded_queue]",
 namespace test_mpmc_bounded_queue_multithread{
     using value_type = float;
     static constexpr std::size_t n_elements = 100*1024*1024;
-    static constexpr std::size_t buffer_capacity = 64;
+    static constexpr std::size_t buffer_capacity = 60;
 }
 TEMPLATE_TEST_CASE("test_mpmc_bounded_queue_multithread","[test_mpmc_bounded_queue]",
     (mpmc_bounded_queue::mpmc_bounded_queue_v1<test_mpmc_bounded_queue_multithread::value_type, test_mpmc_bounded_queue_multithread::buffer_capacity>)
