@@ -9,240 +9,230 @@
 
 namespace test_mpmc_bounded_queue_single_thread{
     using value_type = float;
-    static constexpr std::size_t buffer_capacity = 64;
+    static constexpr std::size_t capacity = 64;
 
-    class test_type{
+    class constructor_destructor_counter{
 
-        static std::size_t constructor_counter;
-        static std::size_t destructor_counter;
-
-
-        public:
+        static std::size_t constructor_counter_;
+        static std::size_t destructor_counter_;
+    public:
+        ~constructor_destructor_counter(){
+            ++destructor_counter_;
+        }
+        constructor_destructor_counter(){
+            ++constructor_counter_;
+        }
+        static auto constructor_counter(){return constructor_counter_;}
+        static auto destructor_counter(){return destructor_counter_;}
+        static void reset_constructor_counter(){constructor_counter_ = 0;}
+        static void reset_destructor_counter(){destructor_counter_ = 0;}
 
     };
 
-    //using value_type_test_clear
+    std::size_t constructor_destructor_counter::constructor_counter_ = 0;
+    std::size_t constructor_destructor_counter::destructor_counter_ = 0;
 }
-
 TEMPLATE_TEST_CASE("test_mpmc_bounded_queue_empty","[test_mpmc_bounded_queue]",
-    (mpmc_bounded_queue::mpmc_bounded_queue_v1<test_mpmc_bounded_queue_single_thread::value_type, test_mpmc_bounded_queue_single_thread::buffer_capacity>)
+    (mpmc_bounded_queue::mpmc_bounded_queue_v1<test_mpmc_bounded_queue_single_thread::value_type, test_mpmc_bounded_queue_single_thread::capacity>)
 ){
-    using buffer_type = TestType;
-    using value_type = typename buffer_type::value_type;
+    using queue_type = TestType;
+    using value_type = typename queue_type::value_type;
 
-    buffer_type buffer{};
-    REQUIRE(buffer.size() == 0);
+    queue_type queue{};
+    REQUIRE(queue.size() == 0);
 
     const value_type v_{11};
     const value_type v_to_push{v_+1};
     value_type v{v_};
     SECTION("try_push_try_pop"){
-        REQUIRE(!buffer.try_pop(v));
-        REQUIRE(buffer.size() == 0);
+        REQUIRE(!queue.try_pop(v));
+        REQUIRE(queue.size() == 0);
         REQUIRE(v == v_);
 
-        REQUIRE(buffer.try_push(v_to_push));
-        REQUIRE(buffer.size() == 1);
-        REQUIRE(buffer.try_pop(v));
-        REQUIRE(buffer.size() == 0);
+        REQUIRE(queue.try_push(v_to_push));
+        REQUIRE(queue.size() == 1);
+        REQUIRE(queue.try_pop(v));
+        REQUIRE(queue.size() == 0);
         REQUIRE(v == v_to_push);
 
-        REQUIRE(!buffer.try_pop(v));
-        REQUIRE(buffer.size() == 0);
+        REQUIRE(!queue.try_pop(v));
+        REQUIRE(queue.size() == 0);
         REQUIRE(v == v_to_push);
     }
     SECTION("push_pop"){
-        buffer.push(v_to_push);
-        REQUIRE(buffer.size() == 1);
-        buffer.pop(v);
-        REQUIRE(!buffer.try_pop(v));
-        REQUIRE(buffer.size() == 0);
+        queue.push(v_to_push);
+        REQUIRE(queue.size() == 1);
+        queue.pop(v);
+        REQUIRE(!queue.try_pop(v));
+        REQUIRE(queue.size() == 0);
         REQUIRE(v == v_to_push);
     }
 }
 
 TEMPLATE_TEST_CASE("test_mpmc_bounded_queue_full","[test_mpmc_bounded_queue]",
-    (mpmc_bounded_queue::mpmc_bounded_queue_v1<test_mpmc_bounded_queue_single_thread::value_type, test_mpmc_bounded_queue_single_thread::buffer_capacity>)
+    (mpmc_bounded_queue::mpmc_bounded_queue_v1<test_mpmc_bounded_queue_single_thread::value_type, test_mpmc_bounded_queue_single_thread::capacity>)
 ){
-    using buffer_type = TestType;
-    using value_type = typename buffer_type::value_type;
+    using queue_type = TestType;
+    using value_type = typename queue_type::value_type;
 
-    buffer_type buffer{};
-    const std::size_t buffer_capacity = buffer.capacity();
+    queue_type queue{};
+    const std::size_t capacity = queue.capacity();
 
     value_type v_{11};
     value_type v{};
     std::size_t i{0};
     SECTION("try_push_try_pop"){
-        while(i!=buffer_capacity){
-            if (!buffer.try_push(v_)){
+        while(i!=capacity){
+            if (!queue.try_push(v_)){
                 break;
             }
             ++i;
         }
-        REQUIRE(i == buffer_capacity);
-        REQUIRE(buffer.size() == buffer_capacity);
-        REQUIRE(!buffer.try_push(value_type{}));
+        REQUIRE(i == capacity);
+        REQUIRE(queue.size() == capacity);
+        REQUIRE(!queue.try_push(value_type{}));
 
         i=0;
-        while(i!=buffer_capacity){
-            if (!buffer.try_pop(v)){
+        while(i!=capacity){
+            if (!queue.try_pop(v)){
                 break;
             }
             ++i;
         }
-        REQUIRE(i == buffer_capacity);
-        REQUIRE(buffer.size() == 0);
-        REQUIRE(!buffer.try_pop(v));
+        REQUIRE(i == capacity);
+        REQUIRE(queue.size() == 0);
+        REQUIRE(!queue.try_pop(v));
 
         i=0;
-        while(i!=buffer_capacity){
-            if (!buffer.try_push(v_)){
+        while(i!=capacity){
+            if (!queue.try_push(v_)){
                 break;
             }
             ++i;
         }
-        REQUIRE(i == buffer_capacity);
-        REQUIRE(buffer.size() == buffer_capacity);
-        REQUIRE(!buffer.try_push(value_type{}));
+        REQUIRE(i == capacity);
+        REQUIRE(queue.size() == capacity);
+        REQUIRE(!queue.try_push(value_type{}));
     }
     SECTION("push_pop"){
-        while(i!=buffer_capacity){
-            buffer.push(v_);
+        while(i!=capacity){
+            queue.push(v_);
             ++i;
         }
-        REQUIRE(buffer.size() == buffer_capacity);
-        REQUIRE(!buffer.try_push(value_type{}));
+        REQUIRE(queue.size() == capacity);
+        REQUIRE(!queue.try_push(value_type{}));
 
         i=0;
-        while(i!=buffer_capacity){
-            buffer.pop(v);
+        while(i!=capacity){
+            queue.pop(v);
             ++i;
         }
-        REQUIRE(buffer.size() == 0);
-        REQUIRE(!buffer.try_pop(v));
+        REQUIRE(queue.size() == 0);
+        REQUIRE(!queue.try_pop(v));
 
         i=0;
-        while(i!=buffer_capacity){
-            buffer.push(v_);
+        while(i!=capacity){
+            queue.push(v_);
             ++i;
         }
-        REQUIRE(buffer.size() == buffer_capacity);
-        REQUIRE(!buffer.try_push(value_type{}));
+        REQUIRE(queue.size() == capacity);
+        REQUIRE(!queue.try_push(value_type{}));
     }
 }
-
 
 TEMPLATE_TEST_CASE("test_mpmc_bounded_queue_clear","[test_mpmc_bounded_queue]",
-    (mpmc_bounded_queue::mpmc_bounded_queue_v1<test_mpmc_bounded_queue_single_thread::value_type, test_mpmc_bounded_queue_single_thread::buffer_capacity>)
+    (mpmc_bounded_queue::mpmc_bounded_queue_v1<test_mpmc_bounded_queue_single_thread::constructor_destructor_counter, test_mpmc_bounded_queue_single_thread::capacity>)
 ){
-    using buffer_type = TestType;
-    using value_type = typename buffer_type::value_type;
+    using queue_type = TestType;
+    using value_type = typename queue_type::value_type;
+    const std::size_t capacity = queue_type{}.capacity();
 
-    buffer_type buffer{};
-    const std::size_t buffer_capacity = buffer.capacity();
+    value_type::reset_constructor_counter();
+    value_type::reset_destructor_counter();
 
-    value_type v_{11};
-    value_type v{};
-    std::size_t i{0};
-    SECTION("try_push_try_pop"){
-        while(i!=buffer_capacity){
-            if (!buffer.try_push(v_)){
-                break;
-            }
-            ++i;
+    SECTION("full_queue_1"){
+        {
+            queue_type queue{};
+            while(queue.try_push());
+            REQUIRE(queue.size() == capacity);
         }
-        REQUIRE(i == buffer_capacity);
-        REQUIRE(buffer.size() == buffer_capacity);
-        REQUIRE(!buffer.try_push(value_type{}));
-
-        i=0;
-        while(i!=buffer_capacity){
-            if (!buffer.try_pop(v)){
-                break;
-            }
-            ++i;
-        }
-        REQUIRE(i == buffer_capacity);
-        REQUIRE(buffer.size() == 0);
-        REQUIRE(!buffer.try_pop(v));
-
-        i=0;
-        while(i!=buffer_capacity){
-            if (!buffer.try_push(v_)){
-                break;
-            }
-            ++i;
-        }
-        REQUIRE(i == buffer_capacity);
-        REQUIRE(buffer.size() == buffer_capacity);
-        REQUIRE(!buffer.try_push(value_type{}));
+        REQUIRE (value_type::destructor_counter() == capacity);
     }
-    SECTION("push_pop"){
-        while(i!=buffer_capacity){
-            buffer.push(v_);
-            ++i;
+    SECTION("full_queue_2"){
+        {
+            queue_type queue{};
+            {
+                value_type v;
+                while(queue.try_push());
+                for(std::size_t i = 0; i!=capacity-1; ++i){
+                    queue.try_pop(v);
+                }
+                while(queue.try_push());
+                REQUIRE(queue.size() == capacity);
+            }
+            REQUIRE (value_type::destructor_counter() == 1);
         }
-        REQUIRE(buffer.size() == buffer_capacity);
-        REQUIRE(!buffer.try_push(value_type{}));
-
-        i=0;
-        while(i!=buffer_capacity){
-            buffer.pop(v);
-            ++i;
+        REQUIRE (value_type::destructor_counter() == capacity + 1);
+    }
+    SECTION("empty_queue_1"){
+        {
+            queue_type queue{};
         }
-        REQUIRE(buffer.size() == 0);
-        REQUIRE(!buffer.try_pop(v));
-
-        i=0;
-        while(i!=buffer_capacity){
-            buffer.push(v_);
-            ++i;
+        REQUIRE (value_type::destructor_counter() == 0);
+        REQUIRE (value_type::constructor_counter() == 0);
+    }
+    SECTION("empty_queue_2"){
+        {
+            queue_type queue{};
+            {
+                value_type v;
+                while(queue.try_push());
+                while(queue.try_pop(v));
+            }
+            REQUIRE (value_type::destructor_counter() == 1);
+            REQUIRE(queue.size() == 0);
         }
-        REQUIRE(buffer.size() == buffer_capacity);
-        REQUIRE(!buffer.try_push(value_type{}));
+        REQUIRE (value_type::destructor_counter() == 1);
     }
 }
-
-
 
 namespace test_mpmc_bounded_queue_multithread{
     using value_type = float;
     static constexpr std::size_t n_elements = 100*1024*1024;
-    static constexpr std::size_t buffer_capacity = 60;
+    static constexpr std::size_t capacity = 60;
 }
 TEMPLATE_TEST_CASE("test_mpmc_bounded_queue_multithread","[test_mpmc_bounded_queue]",
-    (mpmc_bounded_queue::mpmc_bounded_queue_v1<test_mpmc_bounded_queue_multithread::value_type, test_mpmc_bounded_queue_multithread::buffer_capacity>)
+    (mpmc_bounded_queue::mpmc_bounded_queue_v1<test_mpmc_bounded_queue_multithread::value_type, test_mpmc_bounded_queue_multithread::capacity>)
 )
 {
     using benchmark_helpers::make_ranges;
-    using buffer_type = TestType;
-    using value_type = typename buffer_type::value_type;
+    using queue_type = TestType;
+    using value_type = typename queue_type::value_type;
     static constexpr std::size_t n_elements = test_mpmc_bounded_queue_multithread::n_elements;
     static constexpr std::size_t n_producers = 10;
     static constexpr std::size_t n_consumers = 10;
-    buffer_type buffer{};
+    queue_type queue{};
 
     std::vector<value_type> expected(n_elements);
     for (std::size_t i{0}; i!=n_elements; ++i){
         expected[i] = static_cast<value_type>(i);
     }
     std::atomic<std::size_t> producer_counter{0};
-    auto producer_f = [&buffer,&producer_counter](auto producer_id, auto first, auto last){
+    auto producer_f = [&queue,&producer_counter](auto producer_id, auto first, auto last){
         std::for_each(first,last,
-            [&producer_id,&buffer,&producer_counter](const auto& v){
+            [&producer_id,&queue,&producer_counter](const auto& v){
                 std::size_t i{0};
-                while(!buffer.try_push(v)){}
+                while(!queue.try_push(v)){}
                 producer_counter.fetch_add(1);
             }
         );
     };
 
     std::atomic<std::size_t> consumer_counter{0};
-    auto consumer_f = [&buffer,&consumer_counter](auto first, auto last){
+    auto consumer_f = [&queue,&consumer_counter](auto first, auto last){
         std::for_each(first,last,
-            [&buffer,&consumer_counter](auto& v){
-                while(!buffer.try_pop(v)){}
+            [&queue,&consumer_counter](auto& v){
+                while(!queue.try_pop(v)){}
                 consumer_counter.fetch_add(1);
             }
         );
@@ -271,50 +261,50 @@ TEMPLATE_TEST_CASE("test_mpmc_bounded_queue_multithread","[test_mpmc_bounded_que
     std::sort(result.begin(),result.end());
     REQUIRE(result.size() == expected.size());
     REQUIRE(result == expected);
-    REQUIRE(buffer.size() == 0);
+    REQUIRE(queue.size() == 0);
 }
 
 
-// namespace test_circular_buffer_push_pop_multithread{
+// namespace test_circular_queue_push_pop_multithread{
 //     using value_type = float;
 //     static constexpr std::size_t n_elements = 100*1024*1024;
-//     static constexpr std::size_t buffer_size = 64;
-//     //static constexpr std::size_t buffer_size = 256;
+//     static constexpr std::size_t queue_size = 64;
+//     //static constexpr std::size_t queue_size = 256;
 // }
-// TEMPLATE_TEST_CASE("test_circular_buffer_push_pop_multithread","[test_circular_buffer]",
-//     //(experimental_multithreading::mpmc_lock_free_circular_buffer_v2_cas_loop_aligned_counters_elements_acq_rel<test_circular_buffer_push_pop_multithread::value_type, test_circular_buffer_push_pop_multithread::buffer_size>)
-//     (experimental_multithreading::mpmc_lock_free_circular_buffer_v3_aligned_counters<test_circular_buffer_push_pop_multithread::value_type, test_circular_buffer_push_pop_multithread::buffer_size>)
+// TEMPLATE_TEST_CASE("test_circular_queue_push_pop_multithread","[test_circular_queue]",
+//     //(experimental_multithreading::mpmc_lock_free_circular_queue_v2_cas_loop_aligned_counters_elements_acq_rel<test_circular_queue_push_pop_multithread::value_type, test_circular_queue_push_pop_multithread::queue_size>)
+//     (experimental_multithreading::mpmc_lock_free_circular_queue_v3_aligned_counters<test_circular_queue_push_pop_multithread::value_type, test_circular_queue_push_pop_multithread::queue_size>)
 // )
 // {
 //     using benchmark_helpers::make_ranges;
-//     using buffer_type = TestType;
-//     using value_type = typename buffer_type::value_type;
-//     static constexpr std::size_t buffer_size = typename buffer_type::buffer_size;
-//     static constexpr std::size_t n_elements = test_circular_buffer_push_pop_multithread::n_elements;
+//     using queue_type = TestType;
+//     using value_type = typename queue_type::value_type;
+//     static constexpr std::size_t queue_size = typename queue_type::queue_size;
+//     static constexpr std::size_t n_elements = test_circular_queue_push_pop_multithread::n_elements;
 //     static constexpr std::size_t n_producers = 10;
 //     static constexpr std::size_t n_consumers = 10;
 
-//     buffer_type buffer{};
+//     queue_type queue{};
 //     std::vector<value_type> expected(n_elements);
 //     for (std::size_t i{0}; i!=n_elements; ++i){
 //         expected[i] = static_cast<value_type>(i);
 //     }
 //     std::atomic<std::size_t> producer_counter{0};
-//     auto producer_f = [&buffer,&producer_counter](auto producer_id, auto first, auto last){
+//     auto producer_f = [&queue,&producer_counter](auto producer_id, auto first, auto last){
 //         std::for_each(first,last,
-//             [&producer_id,&buffer,&producer_counter](const auto& v){
+//             [&producer_id,&queue,&producer_counter](const auto& v){
 //                 std::size_t i{0};
-//                 buffer.push(v);
+//                 queue.push(v);
 //                 producer_counter.fetch_add(1);
 //             }
 //         );
 //     };
 
 //     std::atomic<std::size_t> consumer_counter{0};
-//     auto consumer_f = [&buffer,&consumer_counter](auto first, auto last){
+//     auto consumer_f = [&queue,&consumer_counter](auto first, auto last){
 //         std::for_each(first,last,
-//             [&buffer,&consumer_counter](auto& v){
-//                 buffer.pop(v);
+//             [&queue,&consumer_counter](auto& v){
+//                 queue.pop(v);
 //                 consumer_counter.fetch_add(1);
 //             }
 //         );
@@ -348,6 +338,6 @@ TEMPLATE_TEST_CASE("test_mpmc_bounded_queue_multithread","[test_mpmc_bounded_que
 
 //     REQUIRE(result.size() == expected.size());
 //     REQUIRE(result == expected);
-//     REQUIRE(buffer.size() == 0);
+//     REQUIRE(queue.size() == 0);
 // }
 
