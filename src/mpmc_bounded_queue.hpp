@@ -25,6 +25,9 @@ public:
         static_assert(alignof(element) == hardware_destructive_interference_size);
         init();
     }
+    ~mpmc_bounded_queue_v1(){
+        clear();
+    }
 
     template<typename...Args>
     bool try_push(Args&&...args){
@@ -90,6 +93,18 @@ public:
 
 private:
 
+    void clear(){
+        auto pop_counter__ = pop_counter_.load(std::memory_order::memory_order_relaxed);
+        for (std::size_t i = 0; i!=buffer_capacity; ++i, ++pop_counter__){
+            auto& element = elements_[index(pop_counter__)];
+            if (element.id.load(std::memory_order::memory_order_acquire) == pop_counter__+1){
+                element.destroy();
+            }else{
+                break;
+            }
+        }
+    }
+
     //use logical and for modulo if buffer_capacity is pow of 2
     template<std::size_t>
     static auto index_(size_type c){return c%(buffer_capacity);}
@@ -109,6 +124,9 @@ private:
         value_type&& get(){
             return std::move(*reinterpret_cast<value_type*>(element_buffer));
         }
+        void destroy(){
+            reinterpret_cast<value_type*>(element_buffer)->~value_type();
+        }
     };
 
     void init(){
@@ -121,6 +139,8 @@ private:
     alignas(hardware_destructive_interference_size) std::atomic<size_type> push_counter_{0};
     alignas(hardware_destructive_interference_size) std::atomic<size_type> pop_counter_{0};
 };
+
+
 
 }   //end of namespace mpmc_bounded_queue
 

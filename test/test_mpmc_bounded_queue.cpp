@@ -10,6 +10,18 @@
 namespace test_mpmc_bounded_queue_single_thread{
     using value_type = float;
     static constexpr std::size_t buffer_capacity = 64;
+
+    class test_type{
+
+        static std::size_t constructor_counter;
+        static std::size_t destructor_counter;
+
+
+        public:
+
+    };
+
+    //using value_type_test_clear
 }
 
 TEMPLATE_TEST_CASE("test_mpmc_bounded_queue_empty","[test_mpmc_bounded_queue]",
@@ -119,6 +131,80 @@ TEMPLATE_TEST_CASE("test_mpmc_bounded_queue_full","[test_mpmc_bounded_queue]",
         REQUIRE(!buffer.try_push(value_type{}));
     }
 }
+
+
+TEMPLATE_TEST_CASE("test_mpmc_bounded_queue_clear","[test_mpmc_bounded_queue]",
+    (mpmc_bounded_queue::mpmc_bounded_queue_v1<test_mpmc_bounded_queue_single_thread::value_type, test_mpmc_bounded_queue_single_thread::buffer_capacity>)
+){
+    using buffer_type = TestType;
+    using value_type = typename buffer_type::value_type;
+
+    buffer_type buffer{};
+    const std::size_t buffer_capacity = buffer.capacity();
+
+    value_type v_{11};
+    value_type v{};
+    std::size_t i{0};
+    SECTION("try_push_try_pop"){
+        while(i!=buffer_capacity){
+            if (!buffer.try_push(v_)){
+                break;
+            }
+            ++i;
+        }
+        REQUIRE(i == buffer_capacity);
+        REQUIRE(buffer.size() == buffer_capacity);
+        REQUIRE(!buffer.try_push(value_type{}));
+
+        i=0;
+        while(i!=buffer_capacity){
+            if (!buffer.try_pop(v)){
+                break;
+            }
+            ++i;
+        }
+        REQUIRE(i == buffer_capacity);
+        REQUIRE(buffer.size() == 0);
+        REQUIRE(!buffer.try_pop(v));
+
+        i=0;
+        while(i!=buffer_capacity){
+            if (!buffer.try_push(v_)){
+                break;
+            }
+            ++i;
+        }
+        REQUIRE(i == buffer_capacity);
+        REQUIRE(buffer.size() == buffer_capacity);
+        REQUIRE(!buffer.try_push(value_type{}));
+    }
+    SECTION("push_pop"){
+        while(i!=buffer_capacity){
+            buffer.push(v_);
+            ++i;
+        }
+        REQUIRE(buffer.size() == buffer_capacity);
+        REQUIRE(!buffer.try_push(value_type{}));
+
+        i=0;
+        while(i!=buffer_capacity){
+            buffer.pop(v);
+            ++i;
+        }
+        REQUIRE(buffer.size() == 0);
+        REQUIRE(!buffer.try_pop(v));
+
+        i=0;
+        while(i!=buffer_capacity){
+            buffer.push(v_);
+            ++i;
+        }
+        REQUIRE(buffer.size() == buffer_capacity);
+        REQUIRE(!buffer.try_push(value_type{}));
+    }
+}
+
+
 
 namespace test_mpmc_bounded_queue_multithread{
     using value_type = float;
