@@ -71,75 +71,27 @@ public:
     using value_type = T;
     mpmc_circular_buffer() = default;
 
-    // bool try_push(const value_type& v){
-    //     if(push_guard.try_lock())
-    //     {
-    //         auto push_index__ = push_index_.load();
-    //         bool is_full{index(push_index__+1)==pop_index_.load()};
-    //         if (!is_full){
-    //             elements_[push_index__] = v;
-    //             push_index_.store(index(push_index__+1));
-    //             push_guard.unlock();
-    //             return true;
-    //         }else{
-    //             push_guard.unlock();
-    //             return false;
-    //         }
-    //     }else{
-    //         return false;
-    //     }
-    // }
-
-    // bool try_pop(value_type& v){
-    //     if(pop_guard.try_lock())
-    //     {
-    //         auto pop_index__ = pop_index_.load();
-    //         bool is_empty{push_index_.load() == pop_index__};
-    //         if (!is_empty){
-    //             v = elements_[pop_index_];
-    //             pop_index_.store(index(pop_index__+1));
-    //             pop_guard.unlock();
-    //             return true;
-    //         }else{
-    //             pop_guard.unlock();
-    //             return false;
-    //         }
-    //     }else{
-    //         return false;
-    //     }
-    // }
-
     bool try_push(const value_type& v){
-        auto lock = std::unique_lock<mutex_type>{push_guard, std::try_to_lock};
-        if(lock)
-        {
-            auto push_index__ = push_index_.load();
-            bool is_full{index(push_index__+1)==pop_index_.load()};
-            if (!is_full){
-                elements_[push_index__] = v;
-                push_index_.store(index(push_index__+1));
-                return true;
-            }else{
-                return false;
-            }
+        std::unique_lock<mutex_type> lock{push_guard};
+        auto push_index__ = push_index_.load();
+        bool is_full{index(push_index__+1)==pop_index_.load()};
+        if (!is_full){
+            elements_[push_index__] = v;
+            push_index_.store(index(push_index__+1));
+            return true;
         }else{
             return false;
         }
     }
 
     bool try_pop(value_type& v){
-        auto lock = std::unique_lock<mutex_type>{pop_guard, std::try_to_lock};
-        if(lock)
-        {
-            auto pop_index__ = pop_index_.load();
-            bool is_empty{push_index_.load() == pop_index__};
-            if (!is_empty){
-                v = elements_[pop_index_];
-                pop_index_.store(index(pop_index__+1));
-                return true;
-            }else{
-                return false;
-            }
+        std::unique_lock<mutex_type> lock{pop_guard};
+        auto pop_index__ = pop_index_.load();
+        bool is_empty{push_index_.load() == pop_index__};
+        if (!is_empty){
+            v = elements_[pop_index_];
+            pop_index_.store(index(pop_index__+1));
+            return true;
         }else{
             return false;
         }
@@ -1048,6 +1000,7 @@ private:
     std::atomic<bool> debug_stop_{false};
 };
 
+template<typename T, std::size_t N, typename SizeT = std::size_t>
 class mpmc_lock_free_circular_buffer_v3_aligned_counters
 {
     static constexpr SizeT size_type_max{std::numeric_limits<SizeT>::max()};

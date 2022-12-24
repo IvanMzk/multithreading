@@ -146,7 +146,8 @@ TEMPLATE_TEST_CASE("test_mpmc_bounded_queue_full","[test_mpmc_bounded_queue]",
 
 TEMPLATE_TEST_CASE("test_mpmc_bounded_queue_clear","[test_mpmc_bounded_queue]",
     (mpmc_bounded_queue::mpmc_bounded_queue_v1<test_mpmc_bounded_queue_single_thread::constructor_destructor_counter, test_mpmc_bounded_queue_single_thread::capacity>),
-    (mpmc_bounded_queue::mpmc_bounded_queue_v2<test_mpmc_bounded_queue_single_thread::constructor_destructor_counter, test_mpmc_bounded_queue_single_thread::capacity>)
+    (mpmc_bounded_queue::mpmc_bounded_queue_v2<test_mpmc_bounded_queue_single_thread::constructor_destructor_counter, test_mpmc_bounded_queue_single_thread::capacity>),
+    (mpmc_bounded_queue::mpmc_bounded_queue_v3<test_mpmc_bounded_queue_single_thread::constructor_destructor_counter, test_mpmc_bounded_queue_single_thread::capacity>)
 ){
     using queue_type = TestType;
     using value_type = typename queue_type::value_type;
@@ -203,7 +204,7 @@ TEMPLATE_TEST_CASE("test_mpmc_bounded_queue_clear","[test_mpmc_bounded_queue]",
 
 namespace test_mpmc_bounded_queue_multithread{
     using value_type = float;
-    static constexpr std::size_t n_elements = 100*1024*1024;
+    static constexpr std::size_t n_elements = 1*1024*1024;
     static constexpr std::size_t capacity = 60;
 }
 TEMPLATE_TEST_CASE("test_mpmc_bounded_queue_try_multithread","[test_mpmc_bounded_queue]",

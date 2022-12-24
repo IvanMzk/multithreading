@@ -128,7 +128,7 @@ private:
         auto pop_counter__ = pop_counter_.load(std::memory_order::memory_order_relaxed);
         for (std::size_t i = 0; i!=capacity_; ++i, ++pop_counter__){
             auto& element = elements_[index(pop_counter__)];
-            if (element.id.load(std::memory_order::memory_order_acquire) == pop_counter__+1){
+            if (element.id.load(std::memory_order::memory_order_relaxed) == pop_counter__+1){
                 element.destroy();
             }else{
                 break;
@@ -227,7 +227,7 @@ private:
 
     void clear(){
         auto pop_reserve_counter__ = pop_reserve_counter_.load(std::memory_order::memory_order_relaxed);
-        auto push_counter__ = push_counter_.load(std::memory_order::memory_order_acquire);
+        auto push_counter__ = push_counter_.load(std::memory_order::memory_order_relaxed);
         while(push_counter__ != pop_reserve_counter__){
             elements_[index(pop_reserve_counter__)].destroy();
             ++pop_reserve_counter__;
@@ -253,16 +253,22 @@ class mpmc_bounded_queue_v3
 public:
     using value_type = T;
 
-    bool try_push(const value_type& v){
+    ~mpmc_bounded_queue_v3()
+    {
+        clear();
+    }
+
+    template<typename...Args>
+    bool try_push(Args&&...args){
         std::unique_lock<mutex_type> lock{push_guard};
-        auto push_index__ = push_index_.load();
+        auto push_index__ = push_index_.load(std::memory_order::memory_order_relaxed);
         auto next_push_index = index(push_index__+1);
-        if (next_push_index == pop_index_.load()){//queue is full
+        if (next_push_index == pop_index_.load(std::memory_order::memory_order_acquire)){//queue is full
             lock.unlock();
             return false;
         }else{
-            elements_[push_index__] = v;
-            push_index_.store(next_push_index);
+            elements_[push_index__].emplace(std::forward<Args>(args)...);
+            push_index_.store(next_push_index, std::memory_order::memory_order_release);
             lock.unlock();
             return true;
         }
@@ -270,62 +276,72 @@ public:
 
     bool try_pop(value_type& v){
         std::unique_lock<mutex_type> lock{pop_guard};
-        auto pop_index__ = pop_index_.load();
-        if (pop_index__ == push_index_.load()){//queue is empty
+        auto pop_index__ = pop_index_.load(std::memory_order::memory_order_relaxed);
+        if (pop_index__ == push_index_.load(std::memory_order::memory_order_acquire)){//queue is empty
             lock.unlock();
             return false;
         }else{
-            v = elements_[pop_index_];
-            pop_index_.store(index(pop_index__+1));
+            v = elements_[pop_index_].get();
+            pop_index_.store(index(pop_index__+1), std::memory_order::memory_order_release);
             lock.unlock();
             return true;
         }
     }
 
-    void push(const value_type& v){
+    template<typename...Args>
+    void push(Args&&...args){
         std::unique_lock<mutex_type> lock{push_guard};
-        auto push_index__ = push_index_.load();
+        auto push_index__ = push_index_.load(std::memory_order::memory_order_relaxed);
         auto next_push_index = index(push_index__+1);
-        while(next_push_index == pop_index_.load()){
+        while(next_push_index == pop_index_.load(std::memory_order::memory_order_acquire)){
             not_full_.wait(lock);
-            push_index__ = push_index_.load();
+            push_index__ = push_index_.load(std::memory_order::memory_order_relaxed);
             next_push_index = index(push_index__+1);
         }
-        elements_[push_index__] = v;
-        push_index_.store(next_push_index);
+        elements_[push_index__].emplace(std::forward<Args>(args)...);
+        push_index_.store(next_push_index, std::memory_order::memory_order_release);
         lock.unlock();
-        not_empty_.notify_all();
+        not_empty_.notify_one();
     }
 
     void pop(value_type& v){
         std::unique_lock<mutex_type> lock{pop_guard};
-        auto pop_index__ = pop_index_.load();
-        while(pop_index__ == push_index_.load()){
+        auto pop_index__ = pop_index_.load(std::memory_order::memory_order_relaxed);
+        while(pop_index__ == push_index_.load(std::memory_order::memory_order_acquire)){
             not_empty_.wait(lock);
-            pop_index__ = pop_index_.load();
+            pop_index__ = pop_index_.load(std::memory_order::memory_order_relaxed);
         }
-        v = elements_[pop_index_];
-        pop_index_.store(index(pop_index__+1));
+        v = elements_[pop_index_].get();
+        pop_index_.store(index(pop_index__+1), std::memory_order::memory_order_release);
         lock.unlock();
-        not_full_.notify_all();
+        not_full_.notify_one();
     }
 
     auto size()const{
-        auto push_index__ = push_index_.load();
-        auto pop_index__ = pop_index_.load();
+        auto push_index__ = push_index_.load(std::memory_order::memory_order_relaxed);
+        auto pop_index__ = pop_index_.load(std::memory_order::memory_order_relaxed);
         return pop_index__ > push_index__ ? (capacity_+1+push_index__-pop_index__) : (push_index__ - pop_index__);
     }
     constexpr size_type capacity()const{return capacity_;}
 
 private:
 
-    std::array<value_type,capacity_+1> elements_;
+    void clear(){
+        auto pop_index__ = pop_index_.load(std::memory_order::memory_order_relaxed);
+        auto push_index__ = push_index_.load(std::memory_order::memory_order_relaxed);
+        while(pop_index__ != push_index__){
+            elements_[pop_index_].destroy();
+            pop_index__ = index(pop_index__+1);
+        }
+    }
+
+    std::array<element_<value_type>,capacity_+1> elements_;
     std::atomic<size_type> push_index_;
     std::atomic<size_type> pop_index_;
-    mutex_type push_guard;
-    mutex_type pop_guard;
     std::condition_variable not_full_;
     std::condition_variable not_empty_;
+    alignas(hardware_destructive_interference_size) mutex_type push_guard;
+    alignas(hardware_destructive_interference_size) mutex_type pop_guard;
 };
 
 }   //end of namespace mpmc_bounded_queue
