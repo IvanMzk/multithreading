@@ -2,6 +2,8 @@
 #define MPMC_BOUNDED_QUEUE_HPP_
 
 #include <atomic>
+#include <mutex>
+#include <condition_variable>
 #include <array>
 
 namespace mpmc_bounded_queue{
@@ -239,6 +241,92 @@ private:
     alignas(hardware_destructive_interference_size) std::atomic<size_type> pop_reserve_counter_{0};
 };
 
+template<typename T, std::size_t N>
+class mpmc_bounded_queue_v3
+{
+    using mutex_type = std::mutex;
+    using size_type = std::size_t;
+    static constexpr size_type capacity_ = N;
+    static constexpr size_type(*index)(size_type) = index_<size_type, capacity_+1>;
+    static constexpr std::size_t hardware_destructive_interference_size = std::hardware_destructive_interference_size;
+    static_assert(std::is_unsigned_v<size_type>);
+public:
+    using value_type = T;
+
+    bool try_push(const value_type& v){
+        std::unique_lock<mutex_type> lock{push_guard};
+        auto push_index__ = push_index_.load();
+        auto next_push_index = index(push_index__+1);
+        if (next_push_index == pop_index_.load()){//queue is full
+            lock.unlock();
+            return false;
+        }else{
+            elements_[push_index__] = v;
+            push_index_.store(next_push_index);
+            lock.unlock();
+            return true;
+        }
+    }
+
+    bool try_pop(value_type& v){
+        std::unique_lock<mutex_type> lock{pop_guard};
+        auto pop_index__ = pop_index_.load();
+        if (pop_index__ == push_index_.load()){//queue is empty
+            lock.unlock();
+            return false;
+        }else{
+            v = elements_[pop_index_];
+            pop_index_.store(index(pop_index__+1));
+            lock.unlock();
+            return true;
+        }
+    }
+
+    void push(const value_type& v){
+        std::unique_lock<mutex_type> lock{push_guard};
+        auto push_index__ = push_index_.load();
+        auto next_push_index = index(push_index__+1);
+        while(next_push_index == pop_index_.load()){
+            not_full_.wait(lock);
+            push_index__ = push_index_.load();
+            next_push_index = index(push_index__+1);
+        }
+        elements_[push_index__] = v;
+        push_index_.store(next_push_index);
+        lock.unlock();
+        not_empty_.notify_all();
+    }
+
+    void pop(value_type& v){
+        std::unique_lock<mutex_type> lock{pop_guard};
+        auto pop_index__ = pop_index_.load();
+        while(pop_index__ == push_index_.load()){
+            not_empty_.wait(lock);
+            pop_index__ = pop_index_.load();
+        }
+        v = elements_[pop_index_];
+        pop_index_.store(index(pop_index__+1));
+        lock.unlock();
+        not_full_.notify_all();
+    }
+
+    auto size()const{
+        auto push_index__ = push_index_.load();
+        auto pop_index__ = pop_index_.load();
+        return pop_index__ > push_index__ ? (capacity_+1+push_index__-pop_index__) : (push_index__ - pop_index__);
+    }
+    constexpr size_type capacity()const{return capacity_;}
+
+private:
+
+    std::array<value_type,capacity_+1> elements_;
+    std::atomic<size_type> push_index_;
+    std::atomic<size_type> pop_index_;
+    mutex_type push_guard;
+    mutex_type pop_guard;
+    std::condition_variable not_full_;
+    std::condition_variable not_empty_;
+};
 
 }   //end of namespace mpmc_bounded_queue
 

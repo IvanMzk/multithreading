@@ -26,7 +26,7 @@ namespace benchmark_mpmc_bounded_queue{
 
 TEMPLATE_TEST_CASE("benchmark_mpmc_bounded_queue","[benchmark_mpmc_bounded_queue]",
     (mpmc_bounded_queue::mpmc_bounded_queue_v1<benchmark_mpmc_bounded_queue::value_type, benchmark_mpmc_bounded_queue::buffer_capacity>),
-    (mpmc_bounded_queue::mpmc_bounded_queue_v1<benchmark_mpmc_bounded_queue::value_type, benchmark_mpmc_bounded_queue::buffer_capacity_not_pow2>)
+    (mpmc_bounded_queue::mpmc_bounded_queue_v2<benchmark_mpmc_bounded_queue::value_type, benchmark_mpmc_bounded_queue::buffer_capacity>)
 )
 {
     using benchmark_helpers::make_ranges;
