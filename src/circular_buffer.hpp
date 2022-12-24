@@ -1048,7 +1048,6 @@ private:
     std::atomic<bool> debug_stop_{false};
 };
 
-template<typename T, std::size_t N, typename SizeT = std::size_t>
 class mpmc_lock_free_circular_buffer_v3_aligned_counters
 {
     static constexpr SizeT size_type_max{std::numeric_limits<SizeT>::max()};
