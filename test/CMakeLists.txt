@@ -15,8 +15,8 @@ target_sources(Test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/test_static_stack.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_static_pool.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_circular_buffer.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_mpmc_bounded_queue.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/benchmark_circular_buffer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_mpmc_bounded_queue.cpp
 )
 
 target_sources(Test_selected PRIVATE

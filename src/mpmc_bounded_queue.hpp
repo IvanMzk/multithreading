@@ -293,28 +293,19 @@ public:
         std::unique_lock<mutex_type> lock{push_guard};
         auto push_index__ = push_index_.load(std::memory_order::memory_order_relaxed);
         auto next_push_index = index(push_index__+1);
-        while(next_push_index == pop_index_.load(std::memory_order::memory_order_acquire)){
-            not_full_.wait(lock);
-            push_index__ = push_index_.load(std::memory_order::memory_order_relaxed);
-            next_push_index = index(push_index__+1);
-        }
+        while(next_push_index == pop_index_.load(std::memory_order::memory_order_acquire));//wait until not full
         elements_[push_index__].emplace(std::forward<Args>(args)...);
         push_index_.store(next_push_index, std::memory_order::memory_order_release);
         lock.unlock();
-        not_empty_.notify_one();
     }
 
     void pop(value_type& v){
         std::unique_lock<mutex_type> lock{pop_guard};
         auto pop_index__ = pop_index_.load(std::memory_order::memory_order_relaxed);
-        while(pop_index__ == push_index_.load(std::memory_order::memory_order_acquire)){
-            not_empty_.wait(lock);
-            pop_index__ = pop_index_.load(std::memory_order::memory_order_relaxed);
-        }
+        while(pop_index__ == push_index_.load(std::memory_order::memory_order_acquire));//wait until not empty
         v = elements_[pop_index_].get();
         pop_index_.store(index(pop_index__+1), std::memory_order::memory_order_release);
         lock.unlock();
-        not_full_.notify_one();
     }
 
     auto size()const{
@@ -338,8 +329,6 @@ private:
     std::array<element_<value_type>,capacity_+1> elements_;
     std::atomic<size_type> push_index_;
     std::atomic<size_type> pop_index_;
-    std::condition_variable not_full_;
-    std::condition_variable not_empty_;
     alignas(hardware_destructive_interference_size) mutex_type push_guard;
     alignas(hardware_destructive_interference_size) mutex_type pop_guard;
 };
