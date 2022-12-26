@@ -32,10 +32,11 @@ namespace test_mpmc_bounded_queue_single_thread{
     std::size_t constructor_destructor_counter::constructor_counter_ = 0;
     std::size_t constructor_destructor_counter::destructor_counter_ = 0;
 }
-TEMPLATE_TEST_CASE("test_mpmc_bounded_queue_empty","[test_mpmc_bounded_queue]",
+TEMPLATE_TEST_CASE("test_mpmc_bounded_queue_non_blocking_interface","[test_mpmc_bounded_queue]",
     (mpmc_bounded_queue::mpmc_bounded_queue_v1<test_mpmc_bounded_queue_single_thread::value_type, test_mpmc_bounded_queue_single_thread::capacity>),
     (mpmc_bounded_queue::mpmc_bounded_queue_v2<test_mpmc_bounded_queue_single_thread::value_type, test_mpmc_bounded_queue_single_thread::capacity>),
-    (mpmc_bounded_queue::mpmc_bounded_queue_v3<test_mpmc_bounded_queue_single_thread::value_type, test_mpmc_bounded_queue_single_thread::capacity>)
+    (mpmc_bounded_queue::mpmc_bounded_queue_v3<test_mpmc_bounded_queue_single_thread::value_type, test_mpmc_bounded_queue_single_thread::capacity>),
+    (mpmc_bounded_queue::st_bounded_queue<test_mpmc_bounded_queue_single_thread::value_type, test_mpmc_bounded_queue_single_thread::capacity>)
 ){
     using queue_type = TestType;
     using value_type = typename queue_type::value_type;
@@ -46,7 +47,7 @@ TEMPLATE_TEST_CASE("test_mpmc_bounded_queue_empty","[test_mpmc_bounded_queue]",
     const value_type v_{11};
     const value_type v_to_push{v_+1};
     value_type v{v_};
-    SECTION("try_push_try_pop"){
+    SECTION("empty_queue"){
         REQUIRE(!queue.try_pop(v));
         REQUIRE(queue.size() == 0);
         REQUIRE(v == v_);
@@ -61,31 +62,9 @@ TEMPLATE_TEST_CASE("test_mpmc_bounded_queue_empty","[test_mpmc_bounded_queue]",
         REQUIRE(queue.size() == 0);
         REQUIRE(v == v_to_push);
     }
-    SECTION("push_pop"){
-        queue.push(v_to_push);
-        REQUIRE(queue.size() == 1);
-        queue.pop(v);
-        REQUIRE(!queue.try_pop(v));
-        REQUIRE(queue.size() == 0);
-        REQUIRE(v == v_to_push);
-    }
-}
-
-TEMPLATE_TEST_CASE("test_mpmc_bounded_queue_full","[test_mpmc_bounded_queue]",
-    (mpmc_bounded_queue::mpmc_bounded_queue_v1<test_mpmc_bounded_queue_single_thread::value_type, test_mpmc_bounded_queue_single_thread::capacity>),
-    (mpmc_bounded_queue::mpmc_bounded_queue_v2<test_mpmc_bounded_queue_single_thread::value_type, test_mpmc_bounded_queue_single_thread::capacity>),
-    (mpmc_bounded_queue::mpmc_bounded_queue_v3<test_mpmc_bounded_queue_single_thread::value_type, test_mpmc_bounded_queue_single_thread::capacity>)
-){
-    using queue_type = TestType;
-    using value_type = typename queue_type::value_type;
-
-    queue_type queue{};
-    const std::size_t capacity = queue.capacity();
-
-    value_type v_{11};
-    value_type v{};
-    std::size_t i{0};
-    SECTION("try_push_try_pop"){
+    SECTION("full_queue"){
+        const std::size_t capacity = queue.capacity();
+        std::size_t i{0};
         while(i!=capacity){
             if (!queue.try_push(v_)){
                 break;
@@ -118,7 +97,33 @@ TEMPLATE_TEST_CASE("test_mpmc_bounded_queue_full","[test_mpmc_bounded_queue]",
         REQUIRE(queue.size() == capacity);
         REQUIRE(!queue.try_push(value_type{}));
     }
-    SECTION("push_pop"){
+}
+
+TEMPLATE_TEST_CASE("test_mpmc_bounded_queue_blocking_interface","[test_mpmc_bounded_queue]",
+    (mpmc_bounded_queue::mpmc_bounded_queue_v1<test_mpmc_bounded_queue_single_thread::value_type, test_mpmc_bounded_queue_single_thread::capacity>),
+    (mpmc_bounded_queue::mpmc_bounded_queue_v2<test_mpmc_bounded_queue_single_thread::value_type, test_mpmc_bounded_queue_single_thread::capacity>),
+    (mpmc_bounded_queue::mpmc_bounded_queue_v3<test_mpmc_bounded_queue_single_thread::value_type, test_mpmc_bounded_queue_single_thread::capacity>)
+){
+    using queue_type = TestType;
+    using value_type = typename queue_type::value_type;
+
+    queue_type queue{};
+    REQUIRE(queue.size() == 0);
+
+    const value_type v_{11};
+    const value_type v_to_push{v_+1};
+    value_type v{v_};
+    SECTION("empty_queue"){
+        queue.push(v_to_push);
+        REQUIRE(queue.size() == 1);
+        queue.pop(v);
+        REQUIRE(!queue.try_pop(v));
+        REQUIRE(queue.size() == 0);
+        REQUIRE(v == v_to_push);
+    }
+    SECTION("full_queue"){
+        const std::size_t capacity = queue.capacity();
+        std::size_t i{0};
         while(i!=capacity){
             queue.push(v_);
             ++i;
@@ -147,7 +152,8 @@ TEMPLATE_TEST_CASE("test_mpmc_bounded_queue_full","[test_mpmc_bounded_queue]",
 TEMPLATE_TEST_CASE("test_mpmc_bounded_queue_clear","[test_mpmc_bounded_queue]",
     (mpmc_bounded_queue::mpmc_bounded_queue_v1<test_mpmc_bounded_queue_single_thread::constructor_destructor_counter, test_mpmc_bounded_queue_single_thread::capacity>),
     (mpmc_bounded_queue::mpmc_bounded_queue_v2<test_mpmc_bounded_queue_single_thread::constructor_destructor_counter, test_mpmc_bounded_queue_single_thread::capacity>),
-    (mpmc_bounded_queue::mpmc_bounded_queue_v3<test_mpmc_bounded_queue_single_thread::constructor_destructor_counter, test_mpmc_bounded_queue_single_thread::capacity>)
+    (mpmc_bounded_queue::mpmc_bounded_queue_v3<test_mpmc_bounded_queue_single_thread::constructor_destructor_counter, test_mpmc_bounded_queue_single_thread::capacity>),
+    (mpmc_bounded_queue::st_bounded_queue<test_mpmc_bounded_queue_single_thread::constructor_destructor_counter, test_mpmc_bounded_queue_single_thread::capacity>)
 ){
     using queue_type = TestType;
     using value_type = typename queue_type::value_type;
@@ -204,7 +210,7 @@ TEMPLATE_TEST_CASE("test_mpmc_bounded_queue_clear","[test_mpmc_bounded_queue]",
 
 namespace test_mpmc_bounded_queue_multithread{
     using value_type = float;
-    static constexpr std::size_t n_elements = 100*1000*1000;
+    static constexpr std::size_t n_elements = 1*1000*1000;
     static constexpr std::size_t capacity = 30;
 }
 TEMPLATE_TEST_CASE("test_mpmc_bounded_queue_try_multithread","[test_mpmc_bounded_queue]",

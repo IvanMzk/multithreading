@@ -20,8 +20,9 @@ auto index_(SizeT c){
 template<typename T>
 class element_
 {
-    using value_type = T;
     alignas(value_type) std::byte buffer[sizeof(value_type)];
+protected:
+    using value_type = T;
 public:
     template<typename...Args>
     void emplace(Args&&...args){
@@ -37,7 +38,24 @@ public:
 
 }   //end of namespace detail
 
+/*
+* to do
+* pop overload to write to element_ not to value_type, so caller not need to construct value_type object to assign to
+* add state to element_ to indicate it contains value
+* make element_ copyable, add destructor
+*/
 
+template<typename T>
+class element : private detail::element_<T>
+{
+    bool empty_{true};
+public:
+    using value_type = T;
+    element(const detail::element_& v)
+};
+
+
+//multiple producer multiple consumer bounded queue
 template<typename T, std::size_t N>
 class mpmc_bounded_queue_v1
 {
@@ -331,6 +349,62 @@ private:
     alignas(hardware_destructive_interference_size) mutex_type push_guard;
     alignas(hardware_destructive_interference_size) mutex_type pop_guard;
 };
+
+//single thread bounded queue
+template<typename T, std::size_t N>
+class st_bounded_queue
+{
+    using size_type = std::size_t;
+    static constexpr size_type capacity_ = N;
+    static constexpr size_type(*index)(size_type) = detail::index_<size_type, capacity_+1>;
+    static_assert(std::is_unsigned_v<size_type>);
+public:
+    using value_type = T;
+
+    ~st_bounded_queue()
+    {
+        clear();
+    }
+
+    template<typename...Args>
+    bool try_push(Args&&...args){
+        auto next_push_index = index(push_index+1);
+        if (next_push_index==pop_index){
+            return false;
+        }else{
+            elements[push_index].emplace(std::forward<Args>(args)...);
+            push_index = next_push_index;
+            return true;
+        }
+    }
+
+    bool try_pop(value_type& v){
+        if (push_index == pop_index){
+            return false;
+        }else{
+            v = elements[pop_index].get();
+            pop_index = index(pop_index+1);
+            return true;
+        }
+    }
+
+    auto size()const{return pop_index > push_index ? (capacity_+1+push_index-pop_index) : (push_index - pop_index);}
+    constexpr size_type capacity()const{return capacity_;}
+
+private:
+
+    void clear(){
+        while(pop_index != push_index){
+            elements[pop_index].destroy();
+            pop_index = index(pop_index+1);
+        }
+    }
+
+    std::array<detail::element_<value_type>,capacity_+1> elements;
+    size_type push_index{0};
+    size_type pop_index{0};
+};
+
 
 }   //end of namespace mpmc_bounded_queue
 
