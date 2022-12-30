@@ -20,20 +20,94 @@ auto index_(SizeT c){
 template<typename T>
 class element_
 {
-    alignas(value_type) std::byte buffer[sizeof(value_type)];
-protected:
     using value_type = T;
 public:
+    //left buffer uninitialized
+    element_(){}
+
     template<typename...Args>
     void emplace(Args&&...args){
         new(reinterpret_cast<void*>(buffer)) value_type{std::forward<Args>(args)...};
     }
-    value_type&& get(){
+    value_type&& move(){
         return std::move(*reinterpret_cast<value_type*>(buffer));
+    }
+    template<typename V>
+    void move(V& v){
+        v = std::move(*reinterpret_cast<value_type*>(buffer));
+    }
+    const value_type& get()const{
+        return *reinterpret_cast<value_type*>(buffer);
+    }
+    value_type& get(){
+        return *reinterpret_cast<value_type*>(buffer);
     }
     void destroy(){
         reinterpret_cast<value_type*>(buffer)->~value_type();
     }
+private:
+    alignas(value_type) std::byte buffer[sizeof(value_type)];
+};
+
+template<typename T>
+class element
+{
+public:
+    using value_type = T;
+    ~element()
+    {
+        clear();
+    }
+    element(){}
+    element(const element& other)
+    {
+        init(other);
+    }
+    element(element&& other)
+    {
+        init(std::move(other));
+    }
+    element& operator=(const element& other){
+        clear();
+        init(other);
+        return *this;
+    }
+    element& operator=(element&& other){
+        clear();
+        init(std::move(other));
+        return *this;
+    }
+
+    element& operator=(value_type&& v){
+        element__.emplace(std::move(v));
+        empty_ = false;
+        return *this;
+    }
+    operator bool()const{return !empty_;}
+    auto empty()const{return empty_;}
+    auto& get()const{return element__.get();}
+    auto& get(){return element__.get();}
+private:
+    void clear(){
+        if (!empty_){
+            element__.destroy();
+        }
+    }
+    void init(const element& other){
+        if (!other.empty_){
+            element__.emplace(other.element__.get());
+            empty_ = false;
+        }
+    }
+    void init(element&& other){
+        if (!other.empty_){
+            element__.emplace(other.element__.move());
+            empty_ = false;
+        }
+    }
+
+    element_<value_type> element__{};
+    bool empty_{true};
 };
 
 }   //end of namespace detail
@@ -44,15 +118,6 @@ public:
 * add state to element_ to indicate it contains value
 * make element_ copyable, add destructor
 */
-
-template<typename T>
-class element : private detail::element_<T>
-{
-    bool empty_{true};
-public:
-    using value_type = T;
-    element(const detail::element_& v)
-};
 
 
 //multiple producer multiple consumer bounded queue
@@ -99,23 +164,12 @@ public:
     }
 
     bool try_pop(value_type& v){
-        auto pop_counter_ = pop_counter.load(std::memory_order::memory_order_relaxed);
-        while(true){
-            auto& element = elements[index(pop_counter_)];
-            auto next_pop_counter = pop_counter_+1;
-            auto id = element.id.load(std::memory_order::memory_order_acquire);
-            if (id == next_pop_counter){
-                if (pop_counter.compare_exchange_weak(pop_counter_, next_pop_counter, std::memory_order::memory_order_relaxed)){//pop_counter_ updated when fails
-                    v = element.get();
-                    element.id.store(pop_counter_+capacity_, std::memory_order::memory_order_release);
-                    return true;
-                }
-            }else if (id < next_pop_counter){//queue empty, exit
-                return false;
-            }else{//element empty, try next
-                pop_counter_ = pop_counter.load(std::memory_order::memory_order_relaxed);
-            }
-        }
+        return try_pop_(v);
+    }
+    auto try_pop(){
+        detail::element<value_type> v{};
+        try_pop_(v);
+        return v;
     }
 
     template<typename...Args>
@@ -128,18 +182,49 @@ public:
     }
 
     void pop(value_type& v){
-        auto pop_counter_ = pop_counter.fetch_add(1, std::memory_order::memory_order_relaxed);    //reserve
-        auto next_pop_counter = pop_counter_+1;
-        auto& element = elements[index(pop_counter_)];
-        while(next_pop_counter != element.id.load(std::memory_order::memory_order_acquire)){};  //wait until element is full
-        v = element.get();
-        element.id.store(pop_counter_+capacity_, std::memory_order::memory_order_release);
+        pop_(v);
+    }
+    auto pop(){
+        detail::element<value_type> v{};
+        pop_(v);
+        return v;
     }
 
     auto size()const{return push_counter.load(std::memory_order::memory_order_relaxed) - pop_counter.load(std::memory_order::memory_order_relaxed);}
     constexpr size_type capacity()const{return capacity_;}
 
 private:
+
+    template<typename V>
+    bool try_pop_(V& v){
+        auto pop_counter_ = pop_counter.load(std::memory_order::memory_order_relaxed);
+        while(true){
+            auto& element = elements[index(pop_counter_)];
+            auto next_pop_counter = pop_counter_+1;
+            auto id = element.id.load(std::memory_order::memory_order_acquire);
+            if (id == next_pop_counter){
+                if (pop_counter.compare_exchange_weak(pop_counter_, next_pop_counter, std::memory_order::memory_order_relaxed)){//pop_counter_ updated when fails
+                    element.move(v);
+                    element.id.store(pop_counter_+capacity_, std::memory_order::memory_order_release);
+                    return true;
+                }
+            }else if (id < next_pop_counter){//queue empty, exit
+                return false;
+            }else{//element empty, try next
+                pop_counter_ = pop_counter.load(std::memory_order::memory_order_relaxed);
+            }
+        }
+    }
+
+    template<typename V>
+    void pop_(V& v){
+        auto pop_counter_ = pop_counter.fetch_add(1, std::memory_order::memory_order_relaxed);    //reserve
+        auto next_pop_counter = pop_counter_+1;
+        auto& element = elements[index(pop_counter_)];
+        while(next_pop_counter != element.id.load(std::memory_order::memory_order_acquire)){};  //wait until element is full
+        element.move(v);
+        element.id.store(pop_counter_+capacity_, std::memory_order::memory_order_release);
+    }
 
     void clear(){
         auto pop_counter_ = pop_counter.load(std::memory_order::memory_order_relaxed);
@@ -211,7 +296,7 @@ public:
             }else{
                 auto next_pop_reserve_counter = pop_reserve_counter_+1;
                 if (pop_reserve_counter.compare_exchange_weak(pop_reserve_counter_, next_pop_reserve_counter, std::memory_order::memory_order_relaxed)){
-                    v = elements[index(pop_reserve_counter_)].get();
+                    elements[index(pop_reserve_counter_)].move(v);
                     while(pop_counter.load(std::memory_order::memory_order_acquire) != pop_reserve_counter_){}//wait for prev pops  //acquaire1
                     pop_counter.store(next_pop_reserve_counter, std::memory_order::memory_order_release);   //release1
                     return true;
@@ -232,7 +317,7 @@ public:
     void pop(value_type& v){
         auto pop_reserve_counter_ = pop_reserve_counter.fetch_add(1, std::memory_order::memory_order_relaxed);
         while(pop_reserve_counter_ >= push_counter.load(std::memory_order::memory_order_acquire)){}   //wait until not empty
-        v = elements[index(pop_reserve_counter_)].get();
+        elements[index(pop_reserve_counter_)].move(v);
         while(pop_counter.load(std::memory_order::memory_order_acquire) != pop_reserve_counter_){}   //wait for prev pops
         pop_counter.store(pop_reserve_counter_+1, std::memory_order::memory_order_release);    //commit
     }
@@ -298,7 +383,7 @@ public:
             lock.unlock();
             return false;
         }else{
-            v = elements[pop_index].get();
+            elements[pop_index].move(v);
             pop_index.store(index(pop_index_+1), std::memory_order::memory_order_release);
             lock.unlock();
             return true;
@@ -320,7 +405,7 @@ public:
         std::unique_lock<mutex_type> lock{pop_guard};
         auto pop_index_ = pop_index.load(std::memory_order::memory_order_relaxed);
         while(pop_index_ == push_index.load(std::memory_order::memory_order_acquire));//wait until not empty
-        v = elements[pop_index].get();
+        elements[pop_index].move(v);
         pop_index.store(index(pop_index_+1), std::memory_order::memory_order_release);
         lock.unlock();
     }
@@ -382,7 +467,7 @@ public:
         if (push_index == pop_index){
             return false;
         }else{
-            v = elements[pop_index].get();
+            elements[pop_index].move(v);
             pop_index = index(pop_index+1);
             return true;
         }
