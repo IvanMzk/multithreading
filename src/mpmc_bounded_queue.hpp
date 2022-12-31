@@ -492,14 +492,16 @@ public:
     }
 
     template<typename...Args>
-    bool try_push(Args&&...args){
+    auto try_push(Args&&...args){
+        value_type* res{nullptr};
         auto next_push_index = index(push_index+1);
         if (next_push_index==pop_index){
-            return false;
+            return res;
         }else{
             elements[push_index].emplace(std::forward<Args>(args)...);
+            res = &elements[push_index].get();
             push_index = next_push_index;
-            return true;
+            return res;
         }
     }
 

@@ -4,17 +4,42 @@
 #include <tuple>
 #include <thread>
 #include <mutex>
+#include <future>
 #include <condition_variable>
 #include "mpmc_bounded_queue.hpp"
 
+
+template<typename R>
+class task_future{
+    using result_type = R;
+    std::future<result_type> f;
+public:
+    ~task_future(){
+        if (f.valid()){
+            f.wait();
+        }
+    }
+    task_future() = default;
+    task_future(std::future<result_type>&& f_):
+        f{std::move(f_)}
+    {}
+    operator bool(){return f.valid();}
+    void wait()const{f.wait();}
+    auto get(){return f.get();}
+};
 
 
 template<typename R, typename...Args>
 class task
 {
-    using func_ptr_type = R(*)(Args&&...);
+    using func_ptr_type = R(*)(Args...);
+    using result_type = R;
+    using future_type = task_future<result_type>;
+
     func_ptr_type f;
     std::tuple<Args...> args;
+    std::promise<result_type> task_promise;
+
 public:
     template<typename...Args_>
     task(func_ptr_type f_, Args_&&...args_):
@@ -22,7 +47,10 @@ public:
         args{std::forward<Args_>(args_)...}
     {}
     auto call()const{
-        return std::apply(f, args);
+        task_promise.set_value(std::apply(f, std::move(args)));
+    }
+    auto get_future(){
+        return future_type{task_promise.get_future()};
     }
 };
 
@@ -39,10 +67,10 @@ template<std::size_t N, typename R, typename...Args>
 class thread_pool<N, R(Args...)>
 {
     static constexpr std::size_t n_workers = N;
+    using func_ptr_type = R(*)(Args...);
     using task_type = task<R,Args...>;
     using queue_type = mpmc_bounded_queue::st_bounded_queue<task_type, n_workers>;
     using mutex_type = std::mutex;
-    //using queue_type = mpmc_bounded_queue::mpmc_bounded_queue_v1<task_type, n_workers>;
 
 public:
 
@@ -52,23 +80,46 @@ public:
     }
     ~thread_pool()
     {
-
+        finish_workers.store(true);
     }
 
-
-    template<typename F, typename...Args_>
-    bool try_push( F f, Args_&&...args){
+    template<typename...Args_>
+    auto try_push(func_ptr_type f, Args_&&...args){
         std::unique_lock<mutex_type> lock{guard};
-        if (tasks.try_push(f,std::forward<Args_>(args)...)){
+        if (auto t = tasks.try_push(f,std::forward<Args_>(args)...)){
+            auto valid_task_future = t->get_future();
             lock.unlock();
             has_task.notify_one();
-            return true;
+            return valid_task_future;
         }else{
-            return false;
+            lock.unlock();
+            return task_future{};   //empty task_future
         }
     }
 
+    template<typename...Args_>
+    auto push(func_ptr_type f, Args_&&...args){
+        while(true){
+            if (auto res = try_push(f, std::forward<Args_>(args)...)){
+                return res;
+            }
+            std::this_thread::yield();
+        }
+    }
 
+    // template<typename...Args_>
+    // auto try_push(func_ptr_type f, Args_&&...args){
+    //     task_type task{f,std::forward<Args_>(args)...};
+    //     auto valid_task_future = task.get_future();
+    //     std::unique_lock<mutex_type> lock{guard};
+    //     if (tasks.try_push(std::move(task))){
+    //         lock.unlock();
+    //         has_task.notify_one();
+    //         return valid_task_future;
+    //     }else{
+    //         return task_future{};   //empty task_future
+    //     }
+    // }
 private:
 
     void init(){
@@ -78,21 +129,26 @@ private:
     }
 
     //problem is to use waiting not yealding in loop and have concurrent push and pop
-    //conditional_variable must use same mutex to gurd push and pop, even if queue is mpmc
+    //conditional_variable must use same mutex to guard push and pop, even if queue is mpmc
     void worker_loop(){
-        while(true){
+        while(!finish_workers.load()){
             std::unique_lock<mutex_type> lock{guard};
-            has_task.wait(lock, [this]{return })
-
-
+            while(true){
+                if (auto t = tasks.try_pop()){
+                    t.get().call();
+                    break;
+                }else{
+                    has_task.wait(lock);
+                }
+            }
         }
     }
 
+    std::atomic<bool> finish_workers{false};
     mutex_type guard;
     std::condition_variable has_task;
     queue_type tasks;
     std::array<std::thread, n_workers> workers;
-
 };
 
 #endif

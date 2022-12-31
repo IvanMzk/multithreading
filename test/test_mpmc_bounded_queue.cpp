@@ -208,74 +208,10 @@ TEMPLATE_TEST_CASE("test_mpmc_bounded_queue_clear","[test_mpmc_bounded_queue]",
     }
 }
 
-TEMPLATE_TEST_CASE("test_mpmc_bounded_queue_pop_element_not_blocking","[test_mpmc_bounded_queue]",
-    (mpmc_bounded_queue::mpmc_bounded_queue_v1<test_mpmc_bounded_queue_single_thread::value_type, test_mpmc_bounded_queue_single_thread::capacity>)
-    //(mpmc_bounded_queue::mpmc_bounded_queue_v2<test_mpmc_bounded_queue_single_thread::constructor_destructor_counter, test_mpmc_bounded_queue_single_thread::capacity>),
-    //(mpmc_bounded_queue::mpmc_bounded_queue_v3<test_mpmc_bounded_queue_single_thread::constructor_destructor_counter, test_mpmc_bounded_queue_single_thread::capacity>),
-    //(mpmc_bounded_queue::st_bounded_queue<test_mpmc_bounded_queue_single_thread::constructor_destructor_counter, test_mpmc_bounded_queue_single_thread::capacity>)
-){
-    using queue_type = TestType;
-    using value_type = typename queue_type::value_type;
-    const std::size_t capacity = queue_type{}.capacity();
-
-    queue_type queue{};
-    const value_type v_{11};
-    const value_type v_to_push{v_+1};
-    SECTION("empty_queue"){
-        REQUIRE(!queue.try_pop());
-        REQUIRE(queue.size() == 0);
-
-        REQUIRE(queue.try_push(v_to_push));
-        REQUIRE(queue.size() == 1);
-        auto v = queue.try_pop();
-        REQUIRE(v);
-        REQUIRE(v.get() == v_to_push);
-        REQUIRE(queue.size() == 0);
-
-        REQUIRE(!queue.try_pop());
-        REQUIRE(queue.size() == 0);
-    }
-    SECTION("full_queue"){
-        const std::size_t capacity = queue.capacity();
-        std::size_t i{0};
-        while(i!=capacity){
-            if (!queue.try_push(v_)){
-                break;
-            }
-            ++i;
-        }
-        REQUIRE(i == capacity);
-        REQUIRE(queue.size() == capacity);
-        REQUIRE(!queue.try_push(value_type{}));
-
-        i=0;
-        while(i!=capacity){
-            if (!queue.try_pop()){
-                break;
-            }
-            ++i;
-        }
-        REQUIRE(i == capacity);
-        REQUIRE(queue.size() == 0);
-        REQUIRE(!queue.try_pop());
-
-        i=0;
-        while(i!=capacity){
-            if (!queue.try_push(v_)){
-                break;
-            }
-            ++i;
-        }
-        REQUIRE(i == capacity);
-        REQUIRE(queue.size() == capacity);
-        REQUIRE(!queue.try_push(value_type{}));
-    }
-}
-
 
 namespace test_mpmc_bounded_queue_multithread{
     using value_type = float;
-    static constexpr std::size_t n_elements = 100*1000*1000;
+    static constexpr std::size_t n_elements = 1*1000*1000;
     static constexpr std::size_t capacity = 32;
 
     struct producer{
