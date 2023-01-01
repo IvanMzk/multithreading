@@ -1,5 +1,6 @@
 #ifndef THREAD_POOL_HPP_
 #define THREAD_POOL_HPP_
+#include <iostream>
 #include <array>
 #include <tuple>
 #include <thread>
@@ -8,6 +9,7 @@
 #include <condition_variable>
 #include "mpmc_bounded_queue.hpp"
 
+namespace experimental_multithreading{
 
 template<typename R>
 class task_future{
@@ -20,6 +22,8 @@ public:
         }
     }
     task_future() = default;
+    task_future(task_future&&) = default;
+    task_future& operator=(task_future&&) = default;
     task_future(std::future<result_type>&& f_):
         f{std::move(f_)}
     {}
@@ -46,8 +50,13 @@ public:
         f{f_},
         args{std::forward<Args_>(args_)...}
     {}
-    auto call()const{
-        task_promise.set_value(std::apply(f, std::move(args)));
+    auto call(){
+        if constexpr(std::is_void_v<result_type>){
+            std::apply(f, std::move(args));
+            task_promise.set_value();
+        }else{
+            task_promise.set_value(std::apply(f, std::move(args)));
+        }
     }
     auto get_future(){
         return future_type{task_promise.get_future()};
@@ -56,11 +65,6 @@ public:
 
 
 template<std::size_t N, typename> class thread_pool;
-
-//specialization for functor of specific type
-//R, Args... extracts from functor's operator() signature
-
-//specialization for std::function<R(Args...)>
 
 //specialization for function pointer
 template<std::size_t N, typename R, typename...Args>
@@ -74,13 +78,13 @@ class thread_pool<N, R(Args...)>
 
 public:
 
-    thread_pool():
-    {
-        init();
-    }
     ~thread_pool()
     {
-        finish_workers.store(true);
+        stop();
+    }
+    thread_pool()
+    {
+        init();
     }
 
     template<typename...Args_>
@@ -93,7 +97,7 @@ public:
             return valid_task_future;
         }else{
             lock.unlock();
-            return task_future{};   //empty task_future
+            return task_future<R>{};   //empty task_future
         }
     }
 
@@ -107,24 +111,19 @@ public:
         }
     }
 
-    // template<typename...Args_>
-    // auto try_push(func_ptr_type f, Args_&&...args){
-    //     task_type task{f,std::forward<Args_>(args)...};
-    //     auto valid_task_future = task.get_future();
-    //     std::unique_lock<mutex_type> lock{guard};
-    //     if (tasks.try_push(std::move(task))){
-    //         lock.unlock();
-    //         has_task.notify_one();
-    //         return valid_task_future;
-    //     }else{
-    //         return task_future{};   //empty task_future
-    //     }
-    // }
 private:
 
     void init(){
         for (std::size_t i{0}; i!=n_workers; ++i){
-            workers[i] = std::thread{worker_loop};
+            workers[i] = std::thread{&thread_pool::worker_loop, this};
+        }
+    }
+
+    void stop(){
+        finish_workers.store(true);
+        has_task.notify_all();
+        for (std::size_t i{0}; i!=n_workers; ++i){
+            workers[i].join();
         }
     }
 
@@ -133,8 +132,9 @@ private:
     void worker_loop(){
         while(!finish_workers.load()){
             std::unique_lock<mutex_type> lock{guard};
-            while(true){
+            while(!finish_workers.load()){
                 if (auto t = tasks.try_pop()){
+                    lock.unlock();
                     t.get().call();
                     break;
                 }else{
@@ -150,5 +150,7 @@ private:
     queue_type tasks;
     std::array<std::thread, n_workers> workers;
 };
+
+}   //end of namespace experimental_multithreading
 
 #endif

@@ -5,7 +5,7 @@
 #include <condition_variable>
 #include <array>
 
-namespace experimental_multithreading{
+
 
 template<typename T, std::size_t N_Elements, typename MutexT = std::mutex>
 class static_pool

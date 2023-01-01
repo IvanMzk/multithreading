@@ -283,7 +283,6 @@ TEMPLATE_TEST_CASE("test_mpmc_bounded_queue_multithread","[test_mpmc_bounded_que
 
     static constexpr auto producer_ranges = make_ranges<n_elements,n_producers>();
     auto producers_it = producers.begin();
-    std::size_t id{0};
     for(auto it = producer_ranges.begin(); it!=producer_ranges.end()-1; ++it,++producers_it,++id){
         *producers_it = std::thread(producer_type{}, std::reference_wrapper<queue_type>{queue}, expected.begin()+*it , expected.begin()+*(it+1));
     }

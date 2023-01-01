@@ -112,14 +112,6 @@ private:
 
 }   //end of namespace detail
 
-/*
-* to do
-* pop overload to write to element_ not to value_type, so caller not need to construct value_type object to assign to
-* add state to element_ to indicate it contains value
-* make element_ copyable, add destructor
-*/
-
-
 //multiple producer multiple consumer bounded queue
 template<typename T, std::size_t N>
 class mpmc_bounded_queue_v1
