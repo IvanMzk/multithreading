@@ -11,11 +11,11 @@ namespace test_thread_pool{
 
 static std::atomic<std::size_t> counter{0};
 void f(){
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
     counter.fetch_add(1);
 }
 void g(){
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
     counter.fetch_sub(1);
 }
 
@@ -35,8 +35,9 @@ TEST_CASE("test_thread_pool_no_result" , "[test_thread_pool]"){
     using experimental_multithreading::task_future;
 
     constexpr static std::size_t n_threads = 10;
-    constexpr static std::size_t n_tasks = 1000;
-    thread_pool<n_threads,void(void)> pool;
+    constexpr static std::size_t queue_capacity = 100;
+    constexpr static std::size_t n_tasks = 1*10*1000;
+    thread_pool<n_threads,queue_capacity,void(void)> pool;
     std::array<task_future<void>, n_tasks> futures;
     counter.store(0);
     for (std::size_t i{0}; i!=n_tasks; ++i){
@@ -60,7 +61,8 @@ TEST_CASE("test_thread_pool_result" , "[test_thread_pool]"){
 
     constexpr static std::size_t n_elements = 10*1000*1000;
     constexpr static std::size_t n_threads = 4;
-    thread_pool<n_threads,value_type(iterator_type,iterator_type)> pool;
+    constexpr static std::size_t queue_capacity = 10;
+    thread_pool<n_threads,queue_capacity,value_type(iterator_type,iterator_type)> pool;
 
     std::array<task_future<value_type>, n_threads> futures;
     container_type elements(n_elements,static_cast<value_type>(1));

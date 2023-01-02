@@ -32,19 +32,19 @@ public:
     auto get(){return f.get();}
 };
 
-
 template<typename R, typename...Args>
 class task
 {
     using func_ptr_type = R(*)(Args...);
     using result_type = R;
-    using future_type = task_future<result_type>;
 
     func_ptr_type f;
     std::tuple<Args...> args;
     std::promise<result_type> task_promise;
 
 public:
+    using future_type = task_future<result_type>;
+
     template<typename...Args_>
     task(func_ptr_type f_, Args_&&...args_):
         f{f_},
@@ -64,19 +64,21 @@ public:
 };
 
 
-template<std::size_t N, typename> class thread_pool;
+template<std::size_t, std::size_t, typename> class thread_pool;
 
 //specialization for function pointer
-template<std::size_t N, typename R, typename...Args>
-class thread_pool<N, R(Args...)>
+template<std::size_t N_W, std::size_t N_Q, typename R, typename...Args>
+class thread_pool<N_W, N_Q, R(Args...)>
 {
-    static constexpr std::size_t n_workers = N;
+    static constexpr std::size_t n_workers = N_W;
+    static constexpr std::size_t queue_capacity = N_Q;
     using func_ptr_type = R(*)(Args...);
     using task_type = task<R,Args...>;
-    using queue_type = mpmc_bounded_queue::st_bounded_queue<task_type, n_workers>;
+    using queue_type = mpmc_bounded_queue::st_bounded_queue<task_type, queue_capacity>;
     using mutex_type = std::mutex;
 
 public:
+    using future_type = typename task_type::future_type;
 
     ~thread_pool()
     {
@@ -147,9 +149,11 @@ private:
     std::atomic<bool> finish_workers{false};
     mutex_type guard;
     std::condition_variable has_task;
+    std::condition_variable empty_queue;
     queue_type tasks;
     std::array<std::thread, n_workers> workers;
 };
+
 
 }   //end of namespace experimental_multithreading
 
