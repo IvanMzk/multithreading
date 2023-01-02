@@ -4,18 +4,16 @@
 #include <atomic>
 #include <mutex>
 #include <array>
+#include <exception>
 
 namespace mpmc_bounded_queue{
 
 namespace detail{
-template<typename SizeT, SizeT Capacity>
-auto index_(SizeT c){
-    if constexpr (static_cast<bool>(Capacity&(Capacity-1))){
-        return c%Capacity;
-    }else{
-        return c&(Capacity-1);
-    }
-}
+
+template<typename SizeT>
+inline auto index_(SizeT cnt, SizeT cap){return cnt%cap;}
+
+static constexpr std::size_t hardware_destructive_interference_size = std::hardware_destructive_interference_size;
 
 template<typename T>
 class element_
@@ -47,6 +45,14 @@ public:
     }
 private:
     alignas(value_type) std::byte buffer[sizeof(value_type)];
+};
+
+template<typename T>
+class element_v1_ : public element_<T>
+{
+    public:
+        using size_type = std::size_t;
+        alignas(hardware_destructive_interference_size) std::atomic<size_type> id{};
 };
 
 template<typename T>
@@ -113,25 +119,30 @@ private:
 }   //end of namespace detail
 
 //multiple producer multiple consumer bounded queue
-template<typename T, std::size_t N>
+template<typename T, typename Allocator = std::allocator<detail::element_v1_<T>>>
 class mpmc_bounded_queue_v1
 {
-    using size_type = std::size_t;
-    static constexpr size_type capacity_ = N;
-    static constexpr size_type(*index)(size_type) = detail::index_<size_type, capacity_>;
-    static constexpr std::size_t hardware_destructive_interference_size = std::hardware_destructive_interference_size;
+    using element_type = typename std::allocator_traits<Allocator>::value_type;
+    using size_type = typename element_type::size_type;
     static_assert(std::is_unsigned_v<size_type>);
-    static_assert(capacity_ > 1);
 public:
     using value_type = T;
+    using allocator_type = Allocator;
 
-    mpmc_bounded_queue_v1()
+    mpmc_bounded_queue_v1(size_type capacity__, const Allocator& allocator__ = Allocator{}):
+        capacity_{capacity__},
+        allocator{allocator__}
     {
+        if (capacity_ <= 1){
+            throw std::invalid_argument("queue capacity must be > 1");
+        }
+        elements = allocator.allocate(capacity_);
         init();
     }
     ~mpmc_bounded_queue_v1()
     {
         clear();
+        allocator.deallocate(elements, capacity_);
     }
 
     template<typename...Args>
@@ -183,7 +194,7 @@ public:
     }
 
     auto size()const{return push_counter.load(std::memory_order::memory_order_relaxed) - pop_counter.load(std::memory_order::memory_order_relaxed);}
-    constexpr size_type capacity()const{return capacity_;}
+    auto capacity()const{return capacity_;}
 
 private:
 
@@ -230,36 +241,44 @@ private:
         }
     }
 
-    class element : public detail::element_<value_type>{
-    public:
-        alignas(hardware_destructive_interference_size) std::atomic<size_type> id{};
-    };
-
     void init(){
         for (size_type i{0}; i!=capacity_; ++i){
             elements[i].id.store(i);
         }
     }
 
-    std::array<element,capacity_> elements{};
-    alignas(hardware_destructive_interference_size) std::atomic<size_type> push_counter{0};
-    alignas(hardware_destructive_interference_size) std::atomic<size_type> pop_counter{0};
+    auto index(size_type cnt){return detail::index_(cnt, capacity_);}
+
+    size_type capacity_;
+    allocator_type allocator;
+    element_type* elements;
+    alignas(detail::hardware_destructive_interference_size) std::atomic<size_type> push_counter{0};
+    alignas(detail::hardware_destructive_interference_size) std::atomic<size_type> pop_counter{0};
 };
 
-template<typename T, std::size_t N>
+template<typename T, typename Allocator = std::allocator<detail::element_<T>>>
 class mpmc_bounded_queue_v2
 {
+    using element_type = typename std::allocator_traits<Allocator>::value_type;
     using size_type = std::size_t;
-    static constexpr size_type capacity_ = N;
-    static constexpr size_type(*index)(size_type) = detail::index_<size_type, capacity_+1>;
-    static constexpr std::size_t hardware_destructive_interference_size = std::hardware_destructive_interference_size;
     static_assert(std::is_unsigned_v<size_type>);
 public:
     using value_type = T;
+    using allocator_type = Allocator;
 
+    mpmc_bounded_queue_v2(size_type capacity__, const allocator_type& alloc = allocator_type()):
+        capacity_{capacity__},
+        allocator{alloc}
+    {
+        if (capacity_ == 0){
+            throw std::invalid_argument("queue capacity must be > 0");
+        }
+        elements = allocator.allocate(capacity_+1);
+    }
     ~mpmc_bounded_queue_v2()
     {
         clear();
+        allocator.deallocate(elements, capacity_+1);
     }
 
     template<typename...Args>
@@ -308,7 +327,7 @@ public:
     }
 
     auto size()const{return push_counter.load(std::memory_order::memory_order_relaxed) - pop_counter.load(std::memory_order::memory_order_relaxed);}
-    constexpr size_type capacity()const{return capacity_;}
+    auto capacity()const{return capacity_;}
 
 private:
 
@@ -348,28 +367,41 @@ private:
         }
     }
 
-    std::array<detail::element_<value_type>, capacity_+1> elements{};
-    alignas(hardware_destructive_interference_size) std::atomic<size_type> push_counter{0};
-    alignas(hardware_destructive_interference_size) std::atomic<size_type> push_reserve_counter{0};
-    alignas(hardware_destructive_interference_size) std::atomic<size_type> pop_counter{0};
-    alignas(hardware_destructive_interference_size) std::atomic<size_type> pop_reserve_counter{0};
+    auto index(size_type cnt){return detail::index_(cnt, capacity_+1);}
+
+    size_type capacity_;
+    allocator_type allocator;
+    element_type* elements;
+    alignas(detail::hardware_destructive_interference_size) std::atomic<size_type> push_counter{0};
+    alignas(detail::hardware_destructive_interference_size) std::atomic<size_type> push_reserve_counter{0};
+    alignas(detail::hardware_destructive_interference_size) std::atomic<size_type> pop_counter{0};
+    alignas(detail::hardware_destructive_interference_size) std::atomic<size_type> pop_reserve_counter{0};
 };
 
-template<typename T, std::size_t N>
+template<typename T, typename Allocator = std::allocator<detail::element_<T>>>
 class mpmc_bounded_queue_v3
 {
-    using mutex_type = std::mutex;
+    using element_type = typename std::allocator_traits<Allocator>::value_type;
     using size_type = std::size_t;
-    static constexpr size_type capacity_ = N;
-    static constexpr size_type(*index)(size_type) = detail::index_<size_type, capacity_+1>;
-    static constexpr std::size_t hardware_destructive_interference_size = std::hardware_destructive_interference_size;
+    using mutex_type = std::mutex;
     static_assert(std::is_unsigned_v<size_type>);
 public:
     using value_type = T;
+    using allocator_type = Allocator;
 
+    mpmc_bounded_queue_v3(size_type capacity__, const allocator_type& alloc = allocator_type()):
+        capacity_{capacity__},
+        allocator{alloc}
+    {
+        if (capacity_ == 0){
+            throw std::invalid_argument("queue capacity must be > 0");
+        }
+        elements = allocator.allocate(capacity_+1);
+    }
     ~mpmc_bounded_queue_v3()
     {
         clear();
+        allocator.deallocate(elements, capacity_+1);
     }
 
     template<typename...Args>
@@ -422,7 +454,7 @@ public:
         auto pop_index_ = pop_index.load(std::memory_order::memory_order_relaxed);
         return pop_index_ > push_index_ ? (capacity_+1+push_index_-pop_index_) : (push_index_ - pop_index_);
     }
-    constexpr size_type capacity()const{return capacity_;}
+    auto capacity()const{return capacity_;}
 
 private:
 
@@ -460,27 +492,41 @@ private:
         }
     }
 
-    std::array<detail::element_<value_type>,capacity_+1> elements;
+    auto index(size_type cnt){return detail::index_(cnt, capacity_+1);}
+
+    size_type capacity_;
+    allocator_type allocator;
+    element_type* elements;
     std::atomic<size_type> push_index;
     std::atomic<size_type> pop_index;
-    alignas(hardware_destructive_interference_size) mutex_type push_guard;
-    alignas(hardware_destructive_interference_size) mutex_type pop_guard;
+    alignas(detail::hardware_destructive_interference_size) mutex_type push_guard;
+    alignas(detail::hardware_destructive_interference_size) mutex_type pop_guard;
 };
 
 //single thread bounded queue
-template<typename T, std::size_t N>
+template<typename T, typename Allocator = std::allocator<detail::element_<T>>>
 class st_bounded_queue
 {
+    using element_type = typename std::allocator_traits<Allocator>::value_type;
     using size_type = std::size_t;
-    static constexpr size_type capacity_ = N;
-    static constexpr size_type(*index)(size_type) = detail::index_<size_type, capacity_+1>;
     static_assert(std::is_unsigned_v<size_type>);
 public:
     using value_type = T;
+    using allocator_type = Allocator;
 
+    st_bounded_queue(size_type capacity__, const allocator_type& alloc = allocator_type()):
+        capacity_{capacity__},
+        allocator{alloc}
+    {
+        if (capacity_ == 0){
+            throw std::invalid_argument("queue capacity must be > 0");
+        }
+        elements = allocator.allocate(capacity_+1);
+    }
     ~st_bounded_queue()
     {
         clear();
+        allocator.deallocate(elements, capacity_+1);
     }
 
     template<typename...Args>
@@ -507,7 +553,7 @@ public:
     }
 
     auto size()const{return pop_index > push_index ? (capacity_+1+push_index-pop_index) : (push_index - pop_index);}
-    constexpr size_type capacity()const{return capacity_;}
+    auto capacity()const{return capacity_;}
 
 private:
 
@@ -529,7 +575,11 @@ private:
         }
     }
 
-    std::array<detail::element_<value_type>,capacity_+1> elements;
+    auto index(size_type cnt){return detail::index_(cnt, capacity_+1);}
+
+    size_type capacity_;
+    allocator_type allocator;
+    element_type* elements;
     size_type push_index{0};
     size_type pop_index{0};
 };

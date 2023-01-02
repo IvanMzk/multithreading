@@ -17,11 +17,11 @@ target_sources(Test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/test_circular_buffer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/benchmark_circular_buffer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/benchmark_mpmc_bounded_queue.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_mpmc_bounded_queue.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_thread_pool.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/benchmark_memcpy_multithread.cpp
 )
 
 target_sources(Test_selected PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/benchmark_memcpy_multithread.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_mpmc_bounded_queue.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test.cpp
 )
