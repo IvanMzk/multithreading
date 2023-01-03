@@ -65,12 +65,14 @@ public:
     }
 };
 
+/*
+* thread_pool_v1 has waiting worker loop and so may have bigger response time than v2
+* which has yielding worker loop and smaller response
+*/
 
-template<typename> class thread_pool;
-
-//specialization for function pointer
+template<typename> class thread_pool_v1;
 template<typename R, typename...Args>
-class thread_pool<R(Args...)>
+class thread_pool_v1<R(Args...)>
 {
     using func_ptr_type = R(*)(Args...);
     using task_type = task<R,Args...>;
@@ -80,12 +82,11 @@ class thread_pool<R(Args...)>
 public:
     using future_type = typename task_type::future_type;
 
-    //?exception if push task after stop
-    ~thread_pool()
+    ~thread_pool_v1()
     {
         stop();
     }
-    thread_pool(std::size_t n_workers, std::size_t n_tasks = n_workers):
+    thread_pool_v1(std::size_t n_workers, std::size_t n_tasks = n_workers):
         workers(n_workers),
         tasks(n_tasks)
     {
@@ -93,11 +94,6 @@ public:
     }
 
     //async version returns task_future that not wait for task complete in destructor, but still possible to call wait() explicitly
-    template<typename...Args_>
-    auto try_push(func_ptr_type f, Args_&&...args){return try_push_<true>(f, std::forward<Args_>(args)...);}
-    template<typename...Args_>
-    auto try_push_async(func_ptr_type f, Args_&&...args){return try_push_<false>(f, std::forward<Args_>(args)...);}
-
     template<typename...Args_>
     auto push(func_ptr_type f, Args_&&...args){return push_<true>(f, std::forward<Args_>(args)...);}
     template<typename...Args_>
@@ -108,11 +104,11 @@ private:
     template<bool Sync = true,  typename...Args_>
     auto try_push_(func_ptr_type f, Args_&&...args){
         std::unique_lock<mutex_type> lock{guard};
-        if (auto t = tasks.try_push(f,std::forward<Args_>(args)...)){
-            auto valid_task_future = t->get_future(Sync);
-            lock.unlock();
+        if (auto task = tasks.try_push(f,std::forward<Args_>(args)...)){
+            auto future = task->get_future(Sync);
             has_task.notify_one();
-            return valid_task_future;
+            lock.unlock();
+            return future;
         }else{
             lock.unlock();
             return task_future<R>{};   //empty task_future
@@ -130,14 +126,14 @@ private:
     }
 
     void init(){
-        std::for_each(workers.begin(),workers.end(),[this](auto& worker){worker=std::thread{&thread_pool::worker_loop, this};});
+        std::for_each(workers.begin(),workers.end(),[this](auto& worker){worker=std::thread{&thread_pool_v1::worker_loop, this};});
     }
 
     void stop(){
         std::unique_lock<mutex_type> lock{guard};
         finish_workers.store(true);
-        lock.unlock();
         has_task.notify_all();
+        lock.unlock();
         std::for_each(workers.begin(),workers.end(),[](auto& worker){worker.join();});
     }
 
@@ -163,6 +159,68 @@ private:
     std::atomic<bool> finish_workers{false};
     mutex_type guard;
     std::condition_variable has_task;
+};
+
+template<typename> class thread_pool_v2;
+template<typename R, typename...Args>
+class thread_pool_v2<R(Args...)>
+{
+    using func_ptr_type = R(*)(Args...);
+    using task_type = task<R,Args...>;
+    using queue_type = mpmc_bounded_queue::mpmc_bounded_queue_v1<task_type>;
+
+public:
+    using future_type = typename task_type::future_type;
+
+    ~thread_pool_v2()
+    {
+        stop();
+    }
+    thread_pool_v2(std::size_t n_workers, std::size_t n_tasks = n_workers):
+        workers(n_workers),
+        tasks(n_tasks)
+    {
+        init();
+    }
+
+    //async version returns task_future that not wait for task complete in destructor, but still possible to call wait() explicitly
+    template<typename...Args_>
+    auto push(func_ptr_type f, Args_&&...args){return push_<true>(f, std::forward<Args_>(args)...);}
+    template<typename...Args_>
+    auto push_async(func_ptr_type f, Args_&&...args){return push_<false>(f, std::forward<Args_>(args)...);}
+
+private:
+
+    template<bool Sync = true, typename...Args_>
+    auto push_(func_ptr_type f, Args_&&...args){
+        task_type task{f, std::forward<Args_>(args)...};
+        auto future = task.get_future(Sync);
+        tasks.push(std::move(task));
+        return future;
+    }
+
+    void init(){
+        std::for_each(workers.begin(),workers.end(),[this](auto& worker){worker=std::thread{&thread_pool_v2::worker_loop, this};});
+    }
+
+    void stop(){
+        finish_workers.store(true);
+        std::for_each(workers.begin(),workers.end(),[](auto& worker){worker.join();});
+    }
+
+    void worker_loop(){
+        while(!finish_workers.load()){  //worker loop
+            if(auto t = tasks.try_pop()){
+                t.get().call();
+            }else{
+                std::this_thread::yield();
+            }
+        }
+    }
+
+    std::vector<std::thread> workers;
+    queue_type tasks;
+    std::atomic<bool> finish_workers{false};
 };
 
 

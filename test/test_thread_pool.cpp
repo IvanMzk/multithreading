@@ -11,33 +11,29 @@ namespace test_thread_pool{
 
 static std::atomic<std::size_t> counter{0};
 void f(){
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
     counter.fetch_add(1);
 }
 void g(){
-    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
     counter.fetch_sub(1);
 }
-
-template<typename It>
-auto accumulate(It first, It last){
-    return std::accumulate(first, last,  static_cast<std::iterator_traits<It>::value_type>(0));
-}
-
 }   //end of namespace test_thread_pool
-
-
-TEST_CASE("test_thread_pool_no_result" , "[test_thread_pool]"){
+TEMPLATE_TEST_CASE("test_thread_pool_no_result" , "[test_thread_pool]",
+    experimental_multithreading::thread_pool_v1<void(void)>,
+    experimental_multithreading::thread_pool_v2<void(void)>
+)
+{
     using test_thread_pool::counter;
     using test_thread_pool::f;
     using test_thread_pool::g;
-    using experimental_multithreading::thread_pool;
     using experimental_multithreading::task_future;
+    using tread_pool_type = TestType;
 
-    constexpr static std::size_t n_threads = 10000;
+    constexpr static std::size_t n_threads = 1000;
     constexpr static std::size_t queue_capacity = n_threads;
-    constexpr static std::size_t n_tasks = 1*100*1000;
-    thread_pool<void(void)> pool{n_threads, queue_capacity};
+    constexpr static std::size_t n_tasks = 1*1000*1000;
+    tread_pool_type pool{n_threads, queue_capacity};
     std::array<task_future<void>, n_tasks> futures;
     counter.store(0);
     for (std::size_t i{0}; i!=n_tasks; ++i){
@@ -51,18 +47,33 @@ TEST_CASE("test_thread_pool_no_result" , "[test_thread_pool]"){
     REQUIRE(counter == 0+n_tasks%2);
 }
 
-TEST_CASE("test_thread_pool_result" , "[test_thread_pool]"){
-    using test_thread_pool::accumulate;
-    using value_type = std::size_t;
-    using container_type = std::vector<value_type>;
-    using iterator_type = typename container_type::iterator;
-    using experimental_multithreading::thread_pool;
+namespace test_thread_pool_result{
+using value_type = std::size_t;
+using container_type = std::vector<value_type>;
+using iterator_type = typename container_type::iterator;
+template<typename It>
+auto accumulate(It first, It last){
+    return std::accumulate(first, last,  static_cast<std::iterator_traits<It>::value_type>(0));
+}
+}   //end of namespace test_thread_pool_result
+TEMPLATE_TEST_CASE("test_thread_pool_result" , "[test_thread_pool]",
+    experimental_multithreading::thread_pool_v1<test_thread_pool_result::value_type(test_thread_pool_result::iterator_type,test_thread_pool_result::iterator_type)>,
+    experimental_multithreading::thread_pool_v2<test_thread_pool_result::value_type(test_thread_pool_result::iterator_type,test_thread_pool_result::iterator_type)>
+)
+{
+
+    using test_thread_pool_result::accumulate;
     using experimental_multithreading::task_future;
+    using thread_pool_type = TestType;
+
+    using value_type = test_thread_pool_result::value_type;
+    using container_type = test_thread_pool_result::container_type;
+    using iterator_type = test_thread_pool_result::iterator_type;
 
     constexpr static std::size_t n_elements = 10*1000*1000;
     constexpr static std::size_t n_threads = 4;
     constexpr static std::size_t queue_capacity = 10;
-    thread_pool<value_type(iterator_type,iterator_type)> pool{n_threads,queue_capacity};
+    thread_pool_type pool{n_threads,queue_capacity};
 
     std::array<task_future<value_type>, n_threads> futures;
     container_type elements(n_elements,static_cast<value_type>(1));
