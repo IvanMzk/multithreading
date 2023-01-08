@@ -64,10 +64,15 @@ auto size_to_str(std::size_t n){
     ss<<size_in_mbytes<T>(n)<<"MByte";
     return ss.str();
 }
+
+template<typename T>
+auto bandwidth_in_gbytes(std::size_t n, float dt_ms){
+    return size_in_mbytes<T>(n)/dt_ms;
+}
 template<typename T>
 auto bandwidth_to_str(std::size_t n, float dt_ms){
     std::stringstream ss{};
-    ss<<size_in_mbytes<T>(n)/dt_ms<<"GBytes/s";
+    ss<<bandwidth_in_gbytes<T>(n,dt_ms)<<"GBytes/s";
     return ss.str();
 }
 

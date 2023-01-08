@@ -66,6 +66,8 @@ public:
 };
 
 /*
+* allocation free thread pool with bounded task queue
+*
 * thread_pool_v1 has waiting worker loop and so may have bigger response time than v2
 * which has yielding worker loop and smaller response
 */
