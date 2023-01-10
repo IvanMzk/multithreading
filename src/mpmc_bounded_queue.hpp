@@ -83,7 +83,6 @@ public:
         init(std::move(other));
         return *this;
     }
-
     element& operator=(value_type&& v){
         element__.emplace(std::move(v));
         empty_ = false;
