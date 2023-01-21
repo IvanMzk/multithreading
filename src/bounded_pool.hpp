@@ -9,7 +9,7 @@ namespace detail{
 
 class queue_of_refs
 {
-    using queue_type = mpmc_bounded_queue::mpmc_bounded_queue_v1<void*>;
+    using queue_type = mpmc_bounded_queue::mpmc_bounded_queue_v3<void*>;
     queue_type refs;
 public:
     queue_of_refs(std::size_t capacity_):
@@ -21,7 +21,6 @@ public:
     auto pop(){return refs.pop();}
     auto try_pop(){return refs.try_pop();}
 };
-
 
 template<typename T>
 class shareable_element{
@@ -112,8 +111,7 @@ private:
 
 }   //end of namespace detail
 
-
-//multiple consumer bounded pool
+//multiple consumer bounded pool of reusable objects
 template<typename T, typename Allocator = std::allocator<detail::shareable_element<T>>>
 class mc_bounded_pool
 {
@@ -125,14 +123,22 @@ public:
     using value_type = T;
     using allocator_type = Allocator;
 
-    explicit mc_bounded_pool(std::size_t capacity__, const value_type& value__ = value_type{}, const Allocator& allocator__ = Allocator{}):
-        allocator{allocator__},
+    template<typename...Args>
+    explicit mc_bounded_pool(std::size_t capacity__, Args&&...args):
+        allocator{allocator_type{}},
         pool(capacity__),
         elements{allocator.allocate(capacity__)}
     {
-        init(value__);
+        init(std::forward<Args>(args)...);
     }
-    template<typename It>
+    // explicit mc_bounded_pool(std::size_t capacity__, const value_type& value__ = value_type{}, const Allocator& allocator__ = Allocator{}):
+    //     allocator{allocator__},
+    //     pool(capacity__),
+    //     elements{allocator.allocate(capacity__)}
+    // {
+    //     init(value__);
+    // }
+    template<typename It, std::enable_if_t<!std::is_convertible_v<It,std::size_t>,int> = 0>
     mc_bounded_pool(It first, It last, const Allocator& allocator__ = Allocator{}):
         allocator{allocator__},
         pool(std::distance(first,last)),
@@ -160,12 +166,19 @@ public:
     auto capacity()const{return pool.capacity();}
     auto empty()const{return size() == 0;}
 private:
-    void init(const value_type& v){
+    template<typename...Args>
+    void init(Args&&...args){
         auto it = elements;
         auto end = elements+capacity();
-        for(;it!=end;++it){new(it) element_type{&pool, v};}
+        for(;it!=end;++it){new(it) element_type{&pool, std::forward<Args>(args)...};}
         init_pool();
     }
+    // void init(const value_type& v){
+    //     auto it = elements;
+    //     auto end = elements+capacity();
+    //     for(;it!=end;++it){new(it) element_type{&pool, v};}
+    //     init_pool();
+    // }
     template<typename It>
     void init(It first, It last){
         auto it = elements;

@@ -6,7 +6,7 @@
 namespace benchmark_memcpy_multithread{
 
 static constexpr std::size_t n_memcpy_workers = 10;
-static experimental_multithreading::thread_pool_v1<decltype(std::memcpy)> memcpy_pool{n_memcpy_workers, n_memcpy_workers};
+static thread_pool::thread_pool_v1<decltype(std::memcpy)> memcpy_pool{n_memcpy_workers, n_memcpy_workers};
 
 template<std::size_t> auto memcpy_multithread(void* dst, const void* src, std::size_t n);
 

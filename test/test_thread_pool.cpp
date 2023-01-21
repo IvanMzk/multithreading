@@ -20,14 +20,14 @@ void g(){
 }
 }   //end of namespace test_thread_pool
 TEMPLATE_TEST_CASE("test_thread_pool_no_result" , "[test_thread_pool]",
-    experimental_multithreading::thread_pool_v1<void(void)>,
-    experimental_multithreading::thread_pool_v2<void(void)>
+    thread_pool::thread_pool_v1<void(void)>,
+    thread_pool::thread_pool_v2<void(void)>
 )
 {
     using test_thread_pool::counter;
     using test_thread_pool::f;
     using test_thread_pool::g;
-    using experimental_multithreading::task_future;
+    using thread_pool::task_future;
     using tread_pool_type = TestType;
 
     constexpr static std::size_t n_threads = 1000;
@@ -57,13 +57,13 @@ auto accumulate(It first, It last){
 }
 }   //end of namespace test_thread_pool_result
 TEMPLATE_TEST_CASE("test_thread_pool_result" , "[test_thread_pool]",
-    experimental_multithreading::thread_pool_v1<test_thread_pool_result::value_type(test_thread_pool_result::iterator_type,test_thread_pool_result::iterator_type)>,
-    experimental_multithreading::thread_pool_v2<test_thread_pool_result::value_type(test_thread_pool_result::iterator_type,test_thread_pool_result::iterator_type)>
+    thread_pool::thread_pool_v1<test_thread_pool_result::value_type(test_thread_pool_result::iterator_type,test_thread_pool_result::iterator_type)>,
+    thread_pool::thread_pool_v2<test_thread_pool_result::value_type(test_thread_pool_result::iterator_type,test_thread_pool_result::iterator_type)>
 )
 {
 
     using test_thread_pool_result::accumulate;
-    using experimental_multithreading::task_future;
+    using thread_pool::task_future;
     using thread_pool_type = TestType;
 
     using value_type = test_thread_pool_result::value_type;
