@@ -1,12 +1,12 @@
-#ifndef MPMC_BOUNDED_QUEUE_HPP_
-#define MPMC_BOUNDED_QUEUE_HPP_
+#ifndef QUEUE_HPP_
+#define QUEUE_HPP_
 
 #include <atomic>
 #include <mutex>
 #include <array>
 #include <exception>
 
-namespace mpmc_bounded_queue{
+namespace queue{
 
 namespace detail{
 
@@ -583,7 +583,138 @@ private:
     size_type pop_index{0};
 };
 
+//single thread queue of polymorphic objects
+//T - pure interface type, must have virtual destructor
+//push parameterized with T implementation type and requires single allocation
+template<typename T, typename Allocator = std::allocator<std::byte>>
+class st_queue_of_polymorphic
+{
+    static_assert(std::has_virtual_destructor_v<T>);
 
-}   //end of namespace mpmc_bounded_queue
+    struct element
+    {
+        std::size_t buffer_size;
+        T* impl;    //ref to ImplT object specified in push call, object will be deleted through this ref
+        element* prev;
+        ~element(){
+            impl->~T();   //implementation destruction
+        }
+        element(const element&) = delete;
+        element& operator=(const element&) = delete;
+        element(element&&) = delete;
+        element& operator=(element&&) = delete;
+        element(std::size_t buffer_size_, T* impl_):
+            buffer_size{buffer_size_},
+            impl{impl_},
+            prev{nullptr}
+        {}
+    };
+
+    //allocator must be stateless, otherwise it must be shared across elements
+    //may be done using shared_ptr if element lifetime exceeds container's or using reference if not
+    static_assert(Allocator::is_always_equal());
+    class unique_element
+    {
+        element* elem;
+        void clear(){
+            if (elem){
+                auto buffer_size = elem->buffer_size;
+                elem->~element();   //element destruction
+                allocator_type{}.deallocate(reinterpret_cast<std::byte*>(elem), buffer_size); //deallocate buffer, allocator must be stateless
+            }
+        }
+    public:
+        ~unique_element(){
+            clear();
+        }
+        unique_element(const element&) = delete;
+        unique_element& operator=(const element&) = delete;
+        unique_element(element&& other):
+            elem{other.elem}
+        {
+            other.elem = nullptr;
+        }
+        unique_element& operator=(element&& other){
+            clear();
+            elem = other.elem;
+            other.elem = nullptr;
+            return *this;
+        }
+        unique_element() = default;
+        unique_element(element* elem_):
+            elem{elem_}
+        {}
+        auto& get()const{return *elem->impl;}
+        auto operator->()const{return elem->impl;}
+        operator bool()const{return static_cast<bool>(elem);}
+    };
+
+public:
+    using allocator_type = Allocator;
+    ~st_queue_of_polymorphic(){
+        while(try_pop()){};
+    }
+    explicit st_queue_of_polymorphic(allocator_type alloc__ = allocator_type{}):
+        alloc_{alloc__},
+        size_{0},
+        head_{nullptr},
+        tail_{nullptr}
+    {}
+
+    //push to tail
+    //ImplT - T interface implementation type, must be derived from T
+    //args - arguments to construct ImplT
+    template<typename ImplT, typename...Args>
+    auto push(Args&&...args){
+        static_assert(std::is_base_of_v<T,ImplT>);
+        auto impl_buffer_size = alignof(ImplT)+sizeof(ImplT);
+        auto buffer_size = sizeof(element)+impl_buffer_size;
+        auto buffer = alloc_.allocate(buffer_size); //single allocation for element and implementation
+        auto impl_buffer = static_cast<void*>(buffer + sizeof(element));
+        if (auto impl_buffer_aligned = std::align(alignof(ImplT), sizeof(ImplT), impl_buffer ,impl_buffer_size)){
+            new (buffer) element{buffer_size, new (impl_buffer_aligned) ImplT{std::forward<Args>(args)...} };
+            auto new_tail = reinterpret_cast<element*>(buffer);
+            if (tail_){
+                tail_->prev = new_tail;
+                tail_ = new_tail;
+            }else{//empty queue
+                tail_ = new_tail;
+                head_ = new_tail;
+            }
+            ++size_;
+            return static_cast<ImplT*>(impl_buffer_aligned);
+        }else{
+            alloc_.deallocate(buffer, buffer_size);
+            throw std::bad_alloc();
+        }
+    }
+
+    //pop from head
+    //returns RAII wrapper around pointer to interface T, implementation will be deleted through this pointer
+    auto try_pop(){
+        if (head_){
+            auto old_head = head_;
+            if (head_ == tail_){//size 1
+                head_ = nullptr;
+                tail_ = nullptr;
+            }else{
+                head_ = head_->prev;
+            }
+            --size_;
+            return unique_element{old_head};
+        }else{//empty queue
+            return unique_element{};
+        }
+    }
+    auto size()const{return size_;}
+private:
+    allocator_type alloc_;
+    std::size_t size_;
+    element* head_;
+    element* tail_;
+};
+
+
+}   //end of namespace queue
 
 #endif

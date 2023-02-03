@@ -9,7 +9,7 @@
 #include <mutex>
 #include <future>
 #include <condition_variable>
-#include "mpmc_bounded_queue.hpp"
+#include "queue.hpp"
 
 namespace thread_pool{
 
@@ -109,20 +109,18 @@ public:
     void call(){
         impl->call();
     }
-
     template<typename F, typename...Args>
     auto set_task(bool sync, F&& f, Args&&...args){
-        using impl_type = task_v3_impl<F,std::decay_t<Args>...>;
+        using impl_type = task_v3_impl<std::decay_t<F>, std::decay_t<Args>...>;
         impl = std::make_unique<impl_type>(std::forward<F>(f),std::forward<Args>(args)...);
         return static_cast<impl_type*>(impl.get())->get_future(sync);
     }
 };
 
 
-
 /*
 * allocation free thread pool with bounded task queue
-*
+* fixed signature and return type of task callable function
 * thread_pool_v1 has waiting worker loop and so may have bigger response time than v2
 * which has yielding worker loop and smaller response time
 */
@@ -133,7 +131,7 @@ class thread_pool_v1<R(Args...)>
 {
     using func_ptr_type = R(*)(Args...);
     using task_type = task<R,Args...>;
-    using queue_type = mpmc_bounded_queue::st_bounded_queue<task_type>;
+    using queue_type = queue::st_bounded_queue<task_type>;
     using mutex_type = std::mutex;
 
 public:
@@ -224,7 +222,7 @@ class thread_pool_v2<R(Args...)>
 {
     using func_ptr_type = R(*)(Args...);
     using task_type = task<R,Args...>;
-    using queue_type = mpmc_bounded_queue::mpmc_bounded_queue_v1<task_type>;
+    using queue_type = queue::mpmc_bounded_queue_v1<task_type>;
 
 public:
     using future_type = typename task_type::future_type;
@@ -281,12 +279,13 @@ private:
 };
 
 
-//make single allocation when push task
+//single allocation thread pool with bounded task queue
 //allow different signatures and return types of task callable
+//push task template method returns task_future<R>, where R is return type of callable given arguments types
 class thread_pool_v3
 {
     using task_type = task_v3;
-    using queue_type = mpmc_bounded_queue::st_bounded_queue<task_type>;
+    using queue_type = queue::st_bounded_queue<task_type>;
     using mutex_type = std::mutex;
 
 public:
@@ -295,6 +294,9 @@ public:
     {
         stop();
     }
+    thread_pool_v3(std::size_t n_workers):
+        thread_pool_v3(n_workers, n_workers)
+    {}
     thread_pool_v3(std::size_t n_workers, std::size_t n_tasks):
         workers(n_workers),
         tasks(n_tasks)
@@ -366,6 +368,80 @@ private:
 
     std::vector<std::thread> workers;
     queue_type tasks;
+    std::atomic<bool> finish_workers{false};
+    mutex_type guard;
+    std::condition_variable has_task;
+};
+
+class thread_pool_v4
+{
+    using task_base_type = task_v3_base;
+    using queue_type = queue::st_queue_of_polymorphic<task_base_type>;
+    using mutex_type = std::mutex;
+
+public:
+
+    ~thread_pool_v4()
+    {
+        stop();
+    }
+    thread_pool_v4(std::size_t n_workers):
+        workers(n_workers)
+    {
+        init();
+    }
+
+    //return task_future<R>, where R is return type of F called with args
+    template<typename F, typename...Args>
+    auto push(F&& f, Args&&...args){return push_<true>(std::forward<F>(f), std::forward<Args>(args)...);}
+    template<typename F, typename...Args>
+    auto push_async(F&& f, Args&&...args){return push_<false>(std::forward<F>(f), std::forward<Args>(args)...);}
+
+private:
+
+    template<bool Sync = true, typename F, typename...Args>
+    auto push_(F&& f, Args&&...args){
+        using task_impl_type = task_v3_impl<std::decay_t<F>, std::decay_t<Args>...>;
+        using future_type = typename task_impl_type::future_type;
+        std::unique_lock<mutex_type> lock{guard};
+        auto task = tasks.push<task_impl_type>(std::forward<F>(f), std::forward<Args>(args)...);
+        future_type future = task->get_future(Sync);
+        has_task.notify_one();
+        lock.unlock();
+        return future;
+    }
+
+    void init(){
+        std::for_each(workers.begin(),workers.end(),[this](auto& worker){worker=std::thread{&thread_pool_v4::worker_loop, this};});
+    }
+
+    void stop(){
+        std::unique_lock<mutex_type> lock{guard};
+        finish_workers.store(true);
+        has_task.notify_all();
+        lock.unlock();
+        std::for_each(workers.begin(),workers.end(),[](auto& worker){worker.join();});
+    }
+
+    //problem is to use waiting not yealding in loop and have concurrent push and pop
+    //conditional_variable must use same mutex to guard push and pop, even if queue is mpmc
+    void worker_loop(){
+        while(!finish_workers.load()){  //worker loop
+            std::unique_lock<mutex_type> lock{guard};
+            while(!finish_workers.load()){  //has_task conditional loop
+                if (auto t = tasks.try_pop()){
+                    lock.unlock();
+                    t->call();
+                    break;
+                }else{
+                    has_task.wait(lock);
+                }
+            }
+        }
+    }
+
+    std::vector<std::thread> workers;
+    queue_type tasks{};
     std::atomic<bool> finish_workers{false};
     mutex_type guard;
     std::condition_variable has_task;

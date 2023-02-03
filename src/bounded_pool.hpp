@@ -1,7 +1,7 @@
 #ifndef BOUNDED_POOL_HPP_
 #define BOUNDED_POOL_HPP_
 
-#include "mpmc_bounded_queue.hpp"
+#include "queue.hpp"
 
 namespace bounded_pool{
 
@@ -9,7 +9,7 @@ namespace detail{
 
 class queue_of_refs
 {
-    using queue_type = mpmc_bounded_queue::mpmc_bounded_queue_v3<void*>;
+    using queue_type = queue::mpmc_bounded_queue_v3<void*>;
     queue_type refs;
 public:
     queue_of_refs(std::size_t capacity_):

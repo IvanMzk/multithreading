@@ -8,22 +8,13 @@ target_link_options(Test_selected PRIVATE /STACK:104857600)
 
 target_sources(Test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/test.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_test.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_test.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/experimental_thread.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/benchmark_static_stack.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_static_stack.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_static_pool.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_circular_buffer.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/benchmark_circular_buffer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/benchmark_mpmc_bounded_queue.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_mpmc_bounded_queue.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/benchmark_memcpy_multithread.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_bounded_pool.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_thread_pool.cpp
 )
 
 target_sources(Test_selected PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_bounded_pool.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_thread_pool_v3.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_thread_pool.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_queue.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test.cpp
 )

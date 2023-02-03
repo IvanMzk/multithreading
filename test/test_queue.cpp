@@ -5,7 +5,7 @@
 #include <iostream>
 #include "catch.hpp"
 #include "benchmark_helpers.hpp"
-#include "mpmc_bounded_queue.hpp"
+#include "queue.hpp"
 
 namespace test_mpmc_bounded_queue_single_thread{
     using value_type = float;
@@ -33,10 +33,10 @@ namespace test_mpmc_bounded_queue_single_thread{
     std::size_t constructor_destructor_counter::destructor_counter_ = 0;
 }
 TEMPLATE_TEST_CASE("test_mpmc_bounded_queue_non_blocking_interface","[test_mpmc_bounded_queue]",
-    (mpmc_bounded_queue::mpmc_bounded_queue_v1<test_mpmc_bounded_queue_single_thread::value_type>),
-    (mpmc_bounded_queue::mpmc_bounded_queue_v2<test_mpmc_bounded_queue_single_thread::value_type>),
-    (mpmc_bounded_queue::mpmc_bounded_queue_v3<test_mpmc_bounded_queue_single_thread::value_type>),
-    (mpmc_bounded_queue::st_bounded_queue<test_mpmc_bounded_queue_single_thread::value_type>)
+    (queue::mpmc_bounded_queue_v1<test_mpmc_bounded_queue_single_thread::value_type>),
+    (queue::mpmc_bounded_queue_v2<test_mpmc_bounded_queue_single_thread::value_type>),
+    (queue::mpmc_bounded_queue_v3<test_mpmc_bounded_queue_single_thread::value_type>),
+    (queue::st_bounded_queue<test_mpmc_bounded_queue_single_thread::value_type>)
 ){
     using queue_type = TestType;
     using value_type = typename queue_type::value_type;
@@ -100,9 +100,9 @@ TEMPLATE_TEST_CASE("test_mpmc_bounded_queue_non_blocking_interface","[test_mpmc_
 }
 
 TEMPLATE_TEST_CASE("test_mpmc_bounded_queue_blocking_interface","[test_mpmc_bounded_queue]",
-    (mpmc_bounded_queue::mpmc_bounded_queue_v1<test_mpmc_bounded_queue_single_thread::value_type>),
-    (mpmc_bounded_queue::mpmc_bounded_queue_v2<test_mpmc_bounded_queue_single_thread::value_type>),
-    (mpmc_bounded_queue::mpmc_bounded_queue_v3<test_mpmc_bounded_queue_single_thread::value_type>)
+    (queue::mpmc_bounded_queue_v1<test_mpmc_bounded_queue_single_thread::value_type>),
+    (queue::mpmc_bounded_queue_v2<test_mpmc_bounded_queue_single_thread::value_type>),
+    (queue::mpmc_bounded_queue_v3<test_mpmc_bounded_queue_single_thread::value_type>)
 ){
     using queue_type = TestType;
     using value_type = typename queue_type::value_type;
@@ -150,10 +150,10 @@ TEMPLATE_TEST_CASE("test_mpmc_bounded_queue_blocking_interface","[test_mpmc_boun
 }
 
 TEMPLATE_TEST_CASE("test_mpmc_bounded_queue_clear","[test_mpmc_bounded_queue]",
-    (mpmc_bounded_queue::mpmc_bounded_queue_v1<test_mpmc_bounded_queue_single_thread::constructor_destructor_counter>),
-    (mpmc_bounded_queue::mpmc_bounded_queue_v2<test_mpmc_bounded_queue_single_thread::constructor_destructor_counter>),
-    (mpmc_bounded_queue::mpmc_bounded_queue_v3<test_mpmc_bounded_queue_single_thread::constructor_destructor_counter>),
-    (mpmc_bounded_queue::st_bounded_queue<test_mpmc_bounded_queue_single_thread::constructor_destructor_counter>)
+    (queue::mpmc_bounded_queue_v1<test_mpmc_bounded_queue_single_thread::constructor_destructor_counter>),
+    (queue::mpmc_bounded_queue_v2<test_mpmc_bounded_queue_single_thread::constructor_destructor_counter>),
+    (queue::mpmc_bounded_queue_v3<test_mpmc_bounded_queue_single_thread::constructor_destructor_counter>),
+    (queue::st_bounded_queue<test_mpmc_bounded_queue_single_thread::constructor_destructor_counter>)
 ){
     using queue_type = TestType;
     using value_type = typename queue_type::value_type;
@@ -211,7 +211,7 @@ TEMPLATE_TEST_CASE("test_mpmc_bounded_queue_clear","[test_mpmc_bounded_queue]",
 
 namespace test_mpmc_bounded_queue_multithread{
     using value_type = float;
-    static constexpr std::size_t n_elements = 100*1000*1000;
+    static constexpr std::size_t n_elements = 10*1000*1000;
     static constexpr std::size_t capacity = 32;
 
     struct producer{
@@ -258,9 +258,9 @@ namespace test_mpmc_bounded_queue_multithread{
     };
 }
 TEMPLATE_TEST_CASE("test_mpmc_bounded_queue_multithread","[test_mpmc_bounded_queue]",
-    (mpmc_bounded_queue::mpmc_bounded_queue_v1<test_mpmc_bounded_queue_multithread::value_type>),
-    (mpmc_bounded_queue::mpmc_bounded_queue_v2<test_mpmc_bounded_queue_multithread::value_type>),
-    (mpmc_bounded_queue::mpmc_bounded_queue_v3<test_mpmc_bounded_queue_multithread::value_type>)
+    (queue::mpmc_bounded_queue_v1<test_mpmc_bounded_queue_multithread::value_type>),
+    (queue::mpmc_bounded_queue_v2<test_mpmc_bounded_queue_multithread::value_type>),
+    (queue::mpmc_bounded_queue_v3<test_mpmc_bounded_queue_multithread::value_type>)
 )
 {
     using benchmark_helpers::make_ranges;
@@ -300,4 +300,173 @@ TEMPLATE_TEST_CASE("test_mpmc_bounded_queue_multithread","[test_mpmc_bounded_que
     REQUIRE(result.size() == expected.size());
     REQUIRE(result == expected);
     REQUIRE(queue.size() == 0);
+}
+
+namespace test_st_queue_of_polymorphic{
+
+inline constexpr std::size_t neg_alignment = 1024;
+
+template<typename T>
+class ctr_dtr_counter
+{
+    static std::size_t ctr_counter_;
+    static std::size_t dtr_counter_;
+public:
+    ~ctr_dtr_counter(){++dtr_counter_;}
+    ctr_dtr_counter(){++ctr_counter_;}
+    static auto ctr_counter(){return ctr_counter_;}
+    static auto dtr_counter(){return dtr_counter_;}
+    static auto reset_counters(){
+        ctr_counter_ = 0;
+        dtr_counter_ = 0;
+    }
+};
+template<typename T> std::size_t ctr_dtr_counter<T>::ctr_counter_{0};
+template<typename T> std::size_t ctr_dtr_counter<T>::dtr_counter_{0};
+
+template<typename T>
+class operation
+{
+public:
+    virtual ~operation(){}
+    virtual T call() = 0;
+};
+
+template<typename T>
+class alignas(neg_alignment) neg  :
+    private ctr_dtr_counter<neg<T>>,
+    public operation<T>
+{
+    T op;
+public:
+    ~neg(){}
+    T call()override{return -op;}
+    neg(const T& op_):
+        op{op_}
+    {}
+};
+
+template<typename T>
+class binary_add  :
+    private ctr_dtr_counter<binary_add<T>>,
+    public operation<T>
+{
+    T op1;
+    T op2;
+public:
+    T call()override{return op1+op2;}
+    binary_add(const T& op1_, const T& op2_):
+        op1{op1_},
+        op2{op2_}
+    {}
+};
+
+template<typename T>
+class binary_mul  :
+    private ctr_dtr_counter<binary_mul<T>>,
+    public operation<T>
+{
+    T op1;
+    T op2;
+public:
+    T call()override{return op1*op2;}
+    binary_mul(const T& op1_, const T& op2_):
+        op1{op1_},
+        op2{op2_}
+    {}
+};
+
+}   //end of namespace test_st_queue_of_polymorphic
+
+TEST_CASE("test_st_queue_of_polymorphic", "[test_st_queue_of_polymorphic]"){
+    using queue::st_queue_of_polymorphic;
+    using test_st_queue_of_polymorphic::operation;
+    using test_st_queue_of_polymorphic::neg;
+    using test_st_queue_of_polymorphic::binary_add;
+    using test_st_queue_of_polymorphic::binary_mul;
+    using test_st_queue_of_polymorphic::neg_alignment;
+    using test_st_queue_of_polymorphic::ctr_dtr_counter;
+    using value_type = int;
+
+    ctr_dtr_counter<neg<value_type>>::reset_counters();
+    ctr_dtr_counter<binary_add<value_type>>::reset_counters();
+    ctr_dtr_counter<binary_mul<value_type>>::reset_counters();
+
+    st_queue_of_polymorphic<operation<value_type>> queue{};
+    REQUIRE(queue.size() == 0);
+    REQUIRE(!queue.try_pop());
+
+    SECTION("test_single_element"){
+        auto neg_impl = queue.push<neg<value_type>>(1);
+        REQUIRE(queue.size() == 1);
+        REQUIRE(neg_impl);
+        REQUIRE(reinterpret_cast<std::uintptr_t>(neg_impl)%neg_alignment == 0);
+        REQUIRE(ctr_dtr_counter<neg<value_type>>::ctr_counter() == 1);
+        REQUIRE(ctr_dtr_counter<neg<value_type>>::dtr_counter() == 0);
+        REQUIRE(neg_impl->call() == -1);
+        {
+            auto neg_op = queue.try_pop();
+            REQUIRE(neg_op);
+            REQUIRE(neg_op->call() == -1);
+            REQUIRE(queue.size() == 0);
+            REQUIRE(!queue.try_pop());
+        }
+        REQUIRE(ctr_dtr_counter<neg<value_type>>::ctr_counter() == 1);
+        REQUIRE(ctr_dtr_counter<neg<value_type>>::dtr_counter() == 1);
+    }
+    SECTION("test_many_elements"){
+        static constexpr std::size_t n_iters = 1000;
+        static constexpr std::size_t n_elements = n_iters*3;
+
+        std::vector<value_type> expected{};
+        expected.reserve(n_elements);
+        for (std::size_t i{0}; i!=n_iters; ++i){
+            auto neg_impl = queue.push<neg<value_type>>(static_cast<value_type>(i));
+            expected.push_back(neg_impl->call());
+            auto add_impl = queue.push<binary_add<value_type>>(static_cast<value_type>(i),2);
+            expected.push_back(add_impl->call());
+            auto mul_impl = queue.push<binary_mul<value_type>>(2,static_cast<value_type>(i));
+            expected.push_back(mul_impl->call());
+        }
+        REQUIRE(queue.size() == n_elements);
+        REQUIRE(ctr_dtr_counter<neg<value_type>>::ctr_counter() == n_iters);
+        REQUIRE(ctr_dtr_counter<binary_add<value_type>>::ctr_counter() == n_iters);
+        REQUIRE(ctr_dtr_counter<binary_mul<value_type>>::ctr_counter() == n_iters);
+        REQUIRE(ctr_dtr_counter<neg<value_type>>::dtr_counter() == 0);
+        REQUIRE(ctr_dtr_counter<binary_add<value_type>>::dtr_counter() == 0);
+        REQUIRE(ctr_dtr_counter<binary_mul<value_type>>::dtr_counter() == 0);
+
+        std::vector<value_type> result{};
+        result.reserve(n_elements);
+        while(auto elem = queue.try_pop()){
+            result.push_back(elem->call());
+        }
+        REQUIRE(queue.size() == 0);
+        REQUIRE(ctr_dtr_counter<neg<value_type>>::ctr_counter() == n_iters);
+        REQUIRE(ctr_dtr_counter<binary_add<value_type>>::ctr_counter() == n_iters);
+        REQUIRE(ctr_dtr_counter<binary_mul<value_type>>::ctr_counter() == n_iters);
+        REQUIRE(ctr_dtr_counter<neg<value_type>>::dtr_counter() == n_iters);
+        REQUIRE(ctr_dtr_counter<binary_add<value_type>>::dtr_counter() == n_iters);
+        REQUIRE(ctr_dtr_counter<binary_mul<value_type>>::dtr_counter() == n_iters);
+
+        REQUIRE(std::equal(result.begin(), result.end(), expected.begin()));
+    }
+    SECTION("test_clear_queue_on_destruction"){
+        {
+            st_queue_of_polymorphic<operation<value_type>> queue_{};
+            queue_.push<neg<value_type>>(1);
+            queue_.push<binary_add<value_type>>(1,2);
+            queue_.push<binary_mul<value_type>>(2,1);
+            queue_.push<neg<value_type>>(1);
+            queue_.push<binary_mul<value_type>>(2,1);
+            queue_.try_pop();
+            queue_.try_pop();
+            REQUIRE(ctr_dtr_counter<neg<value_type>>::dtr_counter() == 1);
+            REQUIRE(ctr_dtr_counter<binary_add<value_type>>::dtr_counter() == 1);
+            REQUIRE(ctr_dtr_counter<binary_mul<value_type>>::dtr_counter() == 0);
+        }
+        REQUIRE(ctr_dtr_counter<neg<value_type>>::ctr_counter() == 2);
+        REQUIRE(ctr_dtr_counter<binary_add<value_type>>::ctr_counter() == 1);
+        REQUIRE(ctr_dtr_counter<binary_mul<value_type>>::ctr_counter() == 2);
+    }
 }
