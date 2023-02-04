@@ -1,7 +1,3 @@
-add_executable(Main)
-target_include_directories(Main PRIVATE ${${project_name}_SOURCE_DIR}\\src)
-target_compile_options(Main PRIVATE -W1 -std:c++17)
-
-target_sources(Main PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp
-)
+add_library(multithreading INTERFACE)
+target_include_directories(multithreading INTERFACE ${${project_name}_SOURCE_DIR}\\src)
+target_compile_options(multithreading INTERFACE -W1 -std:c++17)

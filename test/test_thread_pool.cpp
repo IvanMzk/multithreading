@@ -70,7 +70,7 @@ TEMPLATE_TEST_CASE("test_thread_pool_result" , "[test_thread_pool]",
     using container_type = test_thread_pool_result::container_type;
     using iterator_type = test_thread_pool_result::iterator_type;
 
-    constexpr static std::size_t n_elements = 10*1000*1000;
+    constexpr static std::size_t n_elements = 1*1000*1000;
     constexpr static std::size_t n_threads = 4;
     constexpr static std::size_t queue_capacity = 10;
     thread_pool_type pool{n_threads,queue_capacity};

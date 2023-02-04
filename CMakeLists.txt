@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.2)
 set(project_name multithreading)
 project(${project_name})
-add_subdirectory(test)
+if (CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
+    add_subdirectory(test)
+endif()
 add_subdirectory(src)

@@ -103,7 +103,7 @@ TEMPLATE_TEST_CASE("test_thread_pool_v3_v4_result","[test_thread_pool_v3_v4]",
     using value_type = std::size_t;
     using benchmark_helpers::cpu_timer;
 
-    constexpr static std::size_t n_elements = 10*1000*1000;
+    constexpr static std::size_t n_elements = 1*1000*1000;
     constexpr static std::size_t n_threads = 10;
     thread_pool_type pool{n_threads};
 

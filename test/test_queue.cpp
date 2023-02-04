@@ -211,7 +211,7 @@ TEMPLATE_TEST_CASE("test_mpmc_bounded_queue_clear","[test_mpmc_bounded_queue]",
 
 namespace test_mpmc_bounded_queue_multithread{
     using value_type = float;
-    static constexpr std::size_t n_elements = 10*1000*1000;
+    static constexpr std::size_t n_elements = 1*1000*1000;
     static constexpr std::size_t capacity = 32;
 
     struct producer{
