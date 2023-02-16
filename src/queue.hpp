@@ -5,6 +5,7 @@
 #include <mutex>
 #include <array>
 #include <exception>
+#include <new>
 
 namespace queue{
 
@@ -13,7 +14,11 @@ namespace detail{
 template<typename SizeT>
 inline auto index_(SizeT cnt, SizeT cap){return cnt%cap;}
 
-static constexpr std::size_t hardware_destructive_interference_size = std::hardware_destructive_interference_size;
+#ifdef __cpp_lib_hardware_interference_size
+    inline constexpr std::size_t hardware_destructive_interference_size = std::hardware_destructive_interference_size;
+#else
+    inline constexpr std::size_t hardware_destructive_interference_size = 64;
+#endif
 
 template<typename T>
 class element_
@@ -612,7 +617,7 @@ class st_queue_of_polymorphic
 
     //allocator must be stateless, otherwise it must be shared across elements
     //may be done using shared_ptr if element lifetime exceeds container's or using reference if not
-    static_assert(Allocator::is_always_equal());
+    static_assert(typename Allocator::is_always_equal());
     class unique_element
     {
         element* elem;

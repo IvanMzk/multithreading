@@ -1,8 +1,8 @@
 {
-    // See https://go.microsoft.com/fwlink/?LinkId=733558 
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
     // for the documentation about the tasks.json format
     "version": "2.0.0",
-    "tasks": [        
+    "tasks": [
         {
             "type": "shell",
             "label": "cmake generate",
@@ -11,67 +11,27 @@
             "options": {
                 "cwd": "${workspaceFolder}"
             },
-            "group": "build"                
+            "group": "build"
         },
         {
             "type": "shell",
             "label": "cmake build Test",
             "command": "cmake.exe --build ${workspaceFolder}\\build --target Test",
-            "args": [],            
+            "args": [],
             "group": "test"
         },
         {
             "type": "shell",
-            "label": "cmake build Test_selected",
-            "command": "cmake.exe --build ${workspaceFolder}\\build --target Test_selected",
-            "args": [],            
-            "group": "test"
-        },
-        {
-            "type": "shell",
-            "label": "Run all tests",
+            "label": "Run tests",
             "command": "${workspaceFolder}\\build\\test\\Test.exe",
             "args": [],
-            "group": "test"       
-        },
-        {
-            "type": "shell",
-            "label": "Run selected tests",
-            "command": "${workspaceFolder}\\build\\test\\Test_selected.exe",
-            "args": [],
-            "group": "test"       
-        },
-        {
-            "label":"All Tests build & run",
-            "dependsOrder": "sequence",
-            "dependsOn":["cmake generate","cmake build Test","Run all tests"],
             "group": "test"
         },
         {
-            "label":"Selected Tests build & run",
+            "label":"Tests build & run",
             "dependsOrder": "sequence",
-            "dependsOn":["cmake generate","cmake build Test_selected","Run selected tests"],
+            "dependsOn":["cmake generate","cmake build Test","Run tests"],
             "group": "test"
-        },
-        {
-            "type": "shell",
-            "label": "cmake build Main",
-            "command": "cmake.exe --build ${workspaceFolder}\\build --target Main",
-            "args": [],            
-            "group": "build"
-        },
-        {
-            "type": "shell",
-            "label": "Run Main",
-            "command": "${workspaceFolder}\\build\\src\\Main.exe",
-            "args": [],
-            "group": "build"
-        },
-        {
-            "label":"Main build & run",
-            "dependsOrder": "sequence",
-            "dependsOn":["cmake generate","cmake build Main","Run Main"],
-            "group": "build"
         }
     ]
 }

@@ -114,9 +114,9 @@ TEMPLATE_TEST_CASE("test_thread_pool_v3_v4_result","[test_thread_pool_v3_v4]",
     std::size_t i{0};
     for(auto it = elements_ranges.begin(); it!=elements_ranges.end()-1; ++it,++i){
         if (i%2){
-            futures[i] = pool.push([](auto first, auto last){return std::accumulate(first,last,std::iterator_traits<decltype(first)>::value_type{0});}, elements.begin()+*it , elements.begin()+*(it+1));
+            futures[i] = pool.push([](auto first, auto last){return std::accumulate(first,last,typename std::iterator_traits<decltype(first)>::value_type{0});}, elements.begin()+*it , elements.begin()+*(it+1));
         }else{
-            futures[i] = pool.push_async([](auto first, auto last){return std::accumulate(first,last,std::iterator_traits<decltype(first)>::value_type{0});}, elements.begin()+*it , elements.begin()+*(it+1));
+            futures[i] = pool.push_async([](auto first, auto last){return std::accumulate(first,last,typename std::iterator_traits<decltype(first)>::value_type{0});}, elements.begin()+*it , elements.begin()+*(it+1));
         }
     }
     value_type result_sum{0};

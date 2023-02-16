@@ -53,7 +53,7 @@ using container_type = std::vector<value_type>;
 using iterator_type = typename container_type::iterator;
 template<typename It>
 auto accumulate(It first, It last){
-    return std::accumulate(first, last,  static_cast<std::iterator_traits<It>::value_type>(0));
+    return std::accumulate(first, last,  static_cast<typename std::iterator_traits<It>::value_type>(0));
 }
 }   //end of namespace test_thread_pool_result
 TEMPLATE_TEST_CASE("test_thread_pool_result" , "[test_thread_pool]",

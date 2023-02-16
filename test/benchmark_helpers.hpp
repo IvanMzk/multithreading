@@ -23,11 +23,16 @@ public:
 template<std::size_t N, std::size_t N_groups>
 struct make_ranges_helper{
     template<std::size_t...I>
-    constexpr static auto make_ranges(std::index_sequence<I...>){return std::array<std::size_t,sizeof...(I)>{make_range<I>()...};}
-    template<std::size_t I>
-    constexpr static auto make_range(){return I*(N/N_groups);}
-    template<>
-    constexpr static auto make_range<N_groups>(){return N_groups*(N/N_groups)+(N%N_groups);}
+    constexpr static auto make_ranges(std::index_sequence<I...>){return std::array<std::size_t,sizeof...(I)>{make_range<I,void>::make()...};}
+
+    template<std::size_t I, typename Dummy>
+    struct make_range{constexpr static auto make(){return I*(N/N_groups);}};
+    template<typename Dummy>
+    struct make_range<N_groups,Dummy>{constexpr static auto make(){return N_groups*(N/N_groups)+(N%N_groups);}};
+
+    // template<std::size_t I>
+    // template<>
+    // constexpr static auto make_range<N_groups>(){return N_groups*(N/N_groups)+(N%N_groups);}
 };
 
 template<std::size_t N, std::size_t N_groups>
