@@ -155,28 +155,18 @@ public:
     auto push_async(func_ptr_type f, Args_&&...args){return push_<false>(f, std::forward<Args_>(args)...);}
 
 private:
-
     template<bool Sync = true,  typename...Args_>
-    auto try_push_(func_ptr_type f, Args_&&...args){
-        std::unique_lock<mutex_type> lock{guard};
-        if (auto task = tasks.try_push(f,std::forward<Args_>(args)...)){
-            auto future = task->get_future(Sync);
-            has_task.notify_one();
-            lock.unlock();
-            return future;
-        }else{
-            lock.unlock();
-            return task_future<R>{};   //empty task_future
-        }
-    }
-
-    template<bool Sync = true, typename...Args_>
     auto push_(func_ptr_type f, Args_&&...args){
+        std::unique_lock<mutex_type> lock{guard};
         while(true){
-            if (auto res = try_push_<Sync>(f, std::forward<Args_>(args)...)){
-                return res;
+            if (auto task = tasks.try_push(f,std::forward<Args_>(args)...)){
+                auto future = task->get_future(Sync);
+                lock.unlock();
+                has_task.notify_one();
+                return future;
+            }else{
+                has_slot.wait(lock);
             }
-            std::this_thread::yield();
         }
     }
 
@@ -200,6 +190,7 @@ private:
             while(!finish_workers.load()){  //has_task conditional loop
                 if (auto t = tasks.try_pop()){
                     lock.unlock();
+                    has_slot.notify_one();
                     t.get().call();
                     break;
                 }else{
@@ -214,6 +205,7 @@ private:
     std::atomic<bool> finish_workers{false};
     mutex_type guard{};
     std::condition_variable has_task{};
+    std::condition_variable has_slot{};
 };
 
 template<typename> class thread_pool_v2;
@@ -313,27 +305,18 @@ public:
 private:
 
     template<bool Sync = true, typename F, typename...Args>
-    auto try_push_(F&& f, Args&&...args){
+    auto push_(F&& f, Args&&...args){
         using future_type = decltype( std::declval<task_type>().set_task(Sync, std::forward<F>(f), std::forward<Args>(args)...));
         std::unique_lock<mutex_type> lock{guard};
-        if (auto task = tasks.try_push()){
-            future_type future = task->set_task(Sync, std::forward<F>(f), std::forward<Args>(args)...);
-            has_task.notify_one();
-            lock.unlock();
-            return future;
-        }else{
-            lock.unlock();
-            return future_type{};
-        }
-    }
-
-    template<bool Sync = true, typename F, typename...Args>
-    auto push_(F&& f, Args&&...args){
         while(true){
-            if (auto res = try_push_<Sync>(std::forward<F>(f), std::forward<Args>(args)...)){
-                return res;
+            if (auto task = tasks.try_push()){
+                future_type future = task->set_task(Sync, std::forward<F>(f), std::forward<Args>(args)...);
+                lock.unlock();
+                has_task.notify_one();
+                return future;
+            }else{
+                has_slot.wait(lock);
             }
-            std::this_thread::yield();
         }
     }
 
@@ -357,6 +340,7 @@ private:
             while(!finish_workers.load()){  //has_task conditional loop
                 if (auto t = tasks.try_pop()){
                     lock.unlock();
+                    has_slot.notify_one();
                     t.get().call();
                     break;
                 }else{
@@ -371,6 +355,7 @@ private:
     std::atomic<bool> finish_workers{false};
     mutex_type guard;
     std::condition_variable has_task;
+    std::condition_variable has_slot;
 };
 
 class thread_pool_v4

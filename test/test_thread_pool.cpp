@@ -11,16 +11,16 @@ namespace test_thread_pool{
 
 static std::atomic<std::size_t> counter{0};
 void f(){
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    std::this_thread::sleep_for(std::chrono::microseconds(100));
     counter.fetch_add(1);
 }
 void g(){
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    std::this_thread::sleep_for(std::chrono::microseconds(100));
     counter.fetch_sub(1);
 }
 }   //end of namespace test_thread_pool
 TEMPLATE_TEST_CASE("test_thread_pool_no_result" , "[test_thread_pool]",
-    //thread_pool::thread_pool_v1<void(void)>
+    thread_pool::thread_pool_v1<void(void)>,
     thread_pool::thread_pool_v2<void(void)>
 )
 {
@@ -30,9 +30,9 @@ TEMPLATE_TEST_CASE("test_thread_pool_no_result" , "[test_thread_pool]",
     using thread_pool::task_future;
     using tread_pool_type = TestType;
 
-    constexpr static std::size_t n_threads = 1000;
+    constexpr static std::size_t n_threads = 100;
     constexpr static std::size_t queue_capacity = n_threads;
-    constexpr static std::size_t n_tasks = 1*1000*1000;
+    constexpr static std::size_t n_tasks = 1*100*1000;
     tread_pool_type pool{n_threads, queue_capacity};
     std::array<task_future<void>, n_tasks> futures;
     counter.store(0);
@@ -61,7 +61,6 @@ TEMPLATE_TEST_CASE("test_thread_pool_result" , "[test_thread_pool]",
     thread_pool::thread_pool_v2<test_thread_pool_result::value_type(test_thread_pool_result::iterator_type,test_thread_pool_result::iterator_type)>
 )
 {
-
     using test_thread_pool_result::accumulate;
     using thread_pool::task_future;
     using thread_pool_type = TestType;
@@ -79,14 +78,11 @@ TEMPLATE_TEST_CASE("test_thread_pool_result" , "[test_thread_pool]",
     container_type elements(n_elements,static_cast<value_type>(1));
     static constexpr auto elements_ranges = benchmark_helpers::make_ranges<n_elements,n_threads>();
     std::size_t i{0};
-    //benchmark_helpers::cpu_timer start{};
     for(auto it = elements_ranges.begin(); it!=elements_ranges.end()-1; ++it,++i){
         futures[i] = pool.push(static_cast<value_type(*)(iterator_type,iterator_type)>(accumulate), elements.begin()+*it , elements.begin()+*(it+1));
     }
     value_type sum{0};
     std::for_each(futures.begin(), futures.end(), [&sum](auto& f){sum+=f.get();});
-    //benchmark_helpers::cpu_timer stop{};
-    //std::cout<<std::endl<<"n_threads"<<n_threads<<" ms "<<stop-start;
     REQUIRE(sum == n_elements);
 }
 

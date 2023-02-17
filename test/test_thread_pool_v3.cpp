@@ -11,29 +11,29 @@ namespace test_thread_pool_v3{
 
 static std::atomic<std::size_t> counter{0};
 void f(){
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    std::this_thread::sleep_for(std::chrono::microseconds(100));
     counter.fetch_add(1);
 }
 void g(std::size_t x){
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    std::this_thread::sleep_for(std::chrono::microseconds(100));
     counter.fetch_add(x);
 }
 struct h{
     template<typename T>
     void operator()(T x){
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        std::this_thread::sleep_for(std::chrono::microseconds(100));
         counter.fetch_sub(x);
     }
 };
 struct q{
     void operator()(){
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        std::this_thread::sleep_for(std::chrono::microseconds(100));
         counter.fetch_sub(1);
     }
 };
 struct v{
     void f(std::size_t x){
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        std::this_thread::sleep_for(std::chrono::microseconds(100));
         counter.fetch_add(x);
     }
 };
@@ -42,7 +42,7 @@ struct v{
 
 
 TEMPLATE_TEST_CASE("test_thread_pool_v3_v4_void_result","[test_thread_pool_v3_v4]",
-    //thread_pool::thread_pool_v3
+    thread_pool::thread_pool_v3,
     thread_pool::thread_pool_v4
 )
 {
@@ -56,8 +56,8 @@ TEMPLATE_TEST_CASE("test_thread_pool_v3_v4_void_result","[test_thread_pool_v3_v4
     using test_thread_pool_v3::counter;
     using benchmark_helpers::cpu_timer;
 
-    constexpr static std::size_t n_threads = 1000;
-    constexpr static std::size_t n_tasks = 1*1000*1000;
+    constexpr static std::size_t n_threads = 100;
+    constexpr static std::size_t n_tasks = 1*100*1000;
     tread_pool_type pool{n_threads};
     std::array<task_future<void>, n_tasks> futures;
     counter.store(0);
