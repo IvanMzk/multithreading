@@ -194,7 +194,7 @@ TEST_CASE("test_multithread","[test_bounded_pool]")
     using consumer_type = test_mc_bounded_pool_multithread::consumer;
     using pool_type = mc_bounded_pool<value_type>;
     static constexpr std::size_t n_consumers = 10;
-    static constexpr std::size_t pool_size = 1000*1000;
+    static constexpr std::size_t pool_size = 1*1000*1000;
 
     std::vector<value_type> expected(pool_size);
     std::iota(expected.begin(),expected.end(), 0.0f);

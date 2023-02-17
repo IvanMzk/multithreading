@@ -257,6 +257,7 @@ namespace test_mpmc_bounded_queue_multithread{
 
     };
 }
+
 TEMPLATE_TEST_CASE("test_mpmc_bounded_queue_multithread","[test_mpmc_bounded_queue]",
     (queue::mpmc_bounded_queue_v1<test_mpmc_bounded_queue_multithread::value_type>),
     (queue::mpmc_bounded_queue_v2<test_mpmc_bounded_queue_multithread::value_type>),

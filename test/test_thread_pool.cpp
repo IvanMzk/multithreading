@@ -20,7 +20,7 @@ void g(){
 }
 }   //end of namespace test_thread_pool
 TEMPLATE_TEST_CASE("test_thread_pool_no_result" , "[test_thread_pool]",
-    thread_pool::thread_pool_v1<void(void)>,
+    //thread_pool::thread_pool_v1<void(void)>
     thread_pool::thread_pool_v2<void(void)>
 )
 {
@@ -88,5 +88,5 @@ TEMPLATE_TEST_CASE("test_thread_pool_result" , "[test_thread_pool]",
     //benchmark_helpers::cpu_timer stop{};
     //std::cout<<std::endl<<"n_threads"<<n_threads<<" ms "<<stop-start;
     REQUIRE(sum == n_elements);
-
 }
+

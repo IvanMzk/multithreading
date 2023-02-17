@@ -500,11 +500,11 @@ private:
 
     size_type capacity_;
     allocator_type allocator;
-    element_type* elements;
-    std::atomic<size_type> push_index;
-    std::atomic<size_type> pop_index;
-    alignas(detail::hardware_destructive_interference_size) mutex_type push_guard;
-    alignas(detail::hardware_destructive_interference_size) mutex_type pop_guard;
+    element_type* elements{};
+    std::atomic<size_type> push_index{};
+    std::atomic<size_type> pop_index{};
+    alignas(detail::hardware_destructive_interference_size) mutex_type push_guard{};
+    alignas(detail::hardware_destructive_interference_size) mutex_type pop_guard{};
 };
 
 //single thread bounded queue

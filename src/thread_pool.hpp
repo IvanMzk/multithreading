@@ -212,8 +212,8 @@ private:
     std::vector<std::thread> workers;
     queue_type tasks;
     std::atomic<bool> finish_workers{false};
-    mutex_type guard;
-    std::condition_variable has_task;
+    mutex_type guard{};
+    std::condition_variable has_task{};
 };
 
 template<typename> class thread_pool_v2;
