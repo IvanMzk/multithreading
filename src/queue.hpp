@@ -6,6 +6,7 @@
 #include <array>
 #include <exception>
 #include <new>
+#include <memory>
 
 namespace queue{
 

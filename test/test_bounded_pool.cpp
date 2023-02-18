@@ -156,7 +156,6 @@ TEST_CASE("test_reset","[test_bounded_pool]")
     REQUIRE(pool.size() == pool_size);
 }
 
-
 namespace test_mc_bounded_pool_multithread{
 
 struct consumer{
@@ -174,8 +173,7 @@ struct consumer{
         std::size_t i{0};
         std::for_each(first,last,[&](auto& v){
             switch (i%2){
-                //case 0: try_pop(v); break;
-                case 0: pop(v); break;
+                case 0: try_pop(v); break;
                 case 1: pop(v); break;
             }
             ++i;
@@ -184,7 +182,6 @@ struct consumer{
 };
 
 }   //end of namespace test_mc_bounded_pool_multithread
-
 
 TEST_CASE("test_multithread","[test_bounded_pool]")
 {
@@ -217,4 +214,3 @@ TEST_CASE("test_multithread","[test_bounded_pool]")
     std::sort(result.begin(),result.end());
     REQUIRE(result == expected);
 }
-
