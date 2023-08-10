@@ -557,25 +557,41 @@ public:
     }
 
     bool try_pop(value_type& v){
-        return try_pop_(v);
+        return try_pop_(&v);
     }
     auto try_pop(){
         detail::element<value_type> v{};
-        try_pop_(v);
+        try_pop_(&v);
         return v;
     }
+    bool pop(){
+        return try_pop_(nullptr);
+    }
 
-    auto size()const{return pop_index > push_index ? (capacity_+1+push_index-pop_index) : (push_index - pop_index);}
-    auto capacity()const{return capacity_;}
+    value_type* front(){return front_helper();}
+    const value_type* front()const{return front_helper();}
+
+    bool empty()const{return push_index == pop_index;}
+    size_type size()const{return pop_index > push_index ? (capacity_+1+push_index-pop_index) : (push_index - pop_index);}
+    size_type capacity()const{return capacity_;}
 
 private:
 
+    value_type* front_helper()const{
+        return empty() ? nullptr : &elements[pop_index].get();
+    }
+
+    //call with nullptr arg will destroy front and update pop_index
+    //call with valid pointer additionaly move element to v
+    //in any case return true if queue no empty false otherwise
     template<typename V>
-    bool try_pop_(V& v){
-        if (push_index == pop_index){
+    bool try_pop_(V* v){
+        if (empty()){
             return false;
         }else{
-            elements[pop_index].move(v);
+            if (v){
+                elements[pop_index].move(*v);   //move construct from elements to v
+            }
             elements[pop_index].destroy();
             pop_index = index(pop_index+1);
             return true;
@@ -583,7 +599,7 @@ private:
     }
 
     void clear(){
-        while(pop_index != push_index){
+        while(!empty()){
             elements[pop_index].destroy();
             pop_index = index(pop_index+1);
         }
