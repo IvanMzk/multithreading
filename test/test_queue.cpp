@@ -162,15 +162,18 @@ TEMPLATE_TEST_CASE("test_mpmc_bounded_queue_clear","[test_mpmc_bounded_queue]",
     value_type::reset_constructor_counter();
     value_type::reset_destructor_counter();
 
-    SECTION("full_queue_1"){
+    SECTION("full_queue_1")
+    {
         {
             queue_type queue{test_mpmc_bounded_queue_single_thread::capacity};
             while(queue.try_push());
             REQUIRE(queue.size() == capacity);
         }
         REQUIRE (value_type::destructor_counter() == capacity);
+        REQUIRE(value_type::destructor_counter() == value_type::constructor_counter());
     }
-    SECTION("full_queue_2"){
+    SECTION("full_queue_2")
+    {
         {
             queue_type queue{test_mpmc_bounded_queue_single_thread::capacity};
             {
@@ -182,9 +185,10 @@ TEMPLATE_TEST_CASE("test_mpmc_bounded_queue_clear","[test_mpmc_bounded_queue]",
                 while(queue.try_push());
                 REQUIRE(queue.size() == capacity);
             }
-            REQUIRE (value_type::destructor_counter() == 1);
+            REQUIRE(value_type::destructor_counter() == capacity-1+1); //capacity-1 pops + 1 v
         }
-        REQUIRE (value_type::destructor_counter() == capacity + 1);
+        REQUIRE(value_type::destructor_counter() == capacity + capacity);  //destruct full queue
+        REQUIRE(value_type::destructor_counter() == value_type::constructor_counter());
     }
     SECTION("empty_queue_1"){
         {
@@ -201,10 +205,11 @@ TEMPLATE_TEST_CASE("test_mpmc_bounded_queue_clear","[test_mpmc_bounded_queue]",
                 while(queue.try_push());
                 while(queue.try_pop(v));
             }
-            REQUIRE (value_type::destructor_counter() == 1);
+            REQUIRE (value_type::destructor_counter() == capacity + 1); //capacity pops + 1 v
             REQUIRE(queue.size() == 0);
         }
-        REQUIRE (value_type::destructor_counter() == 1);
+        REQUIRE (value_type::destructor_counter() == capacity + 1); //queue is empty, nothing to destruct
+        REQUIRE(value_type::destructor_counter() == value_type::constructor_counter());
     }
 }
 

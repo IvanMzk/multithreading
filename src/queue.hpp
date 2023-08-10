@@ -213,6 +213,7 @@ private:
             if (id == next_pop_counter){
                 if (pop_counter.compare_exchange_weak(pop_counter_, next_pop_counter, std::memory_order::memory_order_relaxed)){//pop_counter_ updated when fails
                     element.move(v);
+                    element.destroy();
                     element.id.store(pop_counter_+capacity_, std::memory_order::memory_order_release);
                     return true;
                 }
@@ -231,6 +232,7 @@ private:
         auto& element = elements[index(pop_counter_)];
         while(next_pop_counter != element.id.load(std::memory_order::memory_order_acquire)){};  //wait until element is full
         element.move(v);
+        element.destroy();
         element.id.store(pop_counter_+capacity_, std::memory_order::memory_order_release);
     }
 
@@ -345,7 +347,9 @@ private:
             }else{
                 auto next_pop_reserve_counter = pop_reserve_counter_+1;
                 if (pop_reserve_counter.compare_exchange_weak(pop_reserve_counter_, next_pop_reserve_counter, std::memory_order::memory_order_relaxed)){
-                    elements[index(pop_reserve_counter_)].move(v);
+                    const auto index_ = index(pop_reserve_counter_);
+                    elements[index_].move(v);
+                    elements[index_].destroy();
                     while(pop_counter.load(std::memory_order::memory_order_acquire) != pop_reserve_counter_){}//wait for prev pops  //acquaire1
                     pop_counter.store(next_pop_reserve_counter, std::memory_order::memory_order_release);   //release1
                     return true;
@@ -358,7 +362,9 @@ private:
     void pop_(V& v){
         auto pop_reserve_counter_ = pop_reserve_counter.fetch_add(1, std::memory_order::memory_order_relaxed);
         while(pop_reserve_counter_ >= push_counter.load(std::memory_order::memory_order_acquire)){}   //wait until not empty
-        elements[index(pop_reserve_counter_)].move(v);
+        const auto index_ = index(pop_reserve_counter_);
+        elements[index_].move(v);
+        elements[index_].destroy();
         while(pop_counter.load(std::memory_order::memory_order_acquire) != pop_reserve_counter_){}   //wait for prev pops
         pop_counter.store(pop_reserve_counter_+1, std::memory_order::memory_order_release);    //commit
     }
@@ -472,6 +478,7 @@ private:
             return false;
         }else{
             elements[pop_index].move(v);
+            elements[pop_index].destroy();
             pop_index.store(index(pop_index_+1), std::memory_order::memory_order_release);
             lock.unlock();
             return true;
@@ -484,6 +491,7 @@ private:
         auto pop_index_ = pop_index.load(std::memory_order::memory_order_relaxed);
         while(pop_index_ == push_index.load(std::memory_order::memory_order_acquire));//wait until not empty
         elements[pop_index].move(v);
+        elements[pop_index].destroy();
         pop_index.store(index(pop_index_+1), std::memory_order::memory_order_release);
         lock.unlock();
     }
@@ -568,6 +576,7 @@ private:
             return false;
         }else{
             elements[pop_index].move(v);
+            elements[pop_index].destroy();
             pop_index = index(pop_index+1);
             return true;
         }
