@@ -74,12 +74,40 @@ public:
     virtual void call() = 0;
 };
 
+// template<typename F, typename...Args>
+// class task_v3_impl : public task_v3_base
+// {
+//     using result_type = std::invoke_result_t<F,Args...>;
+//     F f;
+//     std::tuple<Args...> args;
+//     std::promise<result_type> task_promise;
+//     void call() override {
+//             if constexpr(std::is_void_v<result_type>){
+//                 std::apply(f, std::move(args));
+//                 task_promise.set_value();
+//             }else{
+//                 task_promise.set_value(std::apply(f, std::move(args)));
+//             }
+//         }
+// public:
+//     using future_type = task_future<result_type>;
+//     template<typename F_, typename...Args_>
+//     task_v3_impl(F_&& f_, Args_&&...args_):
+//             f{std::forward<F_>(f_)},
+//             args{std::forward<Args_>(args_)...}
+//         {}
+//     auto get_future(bool sync = true){
+//             return future_type{sync, task_promise.get_future()};
+//         }
+// };
+
 template<typename F, typename...Args>
 class task_v3_impl : public task_v3_base
 {
-    using result_type = std::invoke_result_t<F,Args...>;
+    using args_type = decltype(std::make_tuple(std::declval<Args>()...));
+    using result_type = std::decay_t<decltype(std::apply(std::declval<F>(),std::declval<args_type>()))>;
     F f;
-    std::tuple<Args...> args;
+    args_type args;
     std::promise<result_type> task_promise;
     void call() override {
             if constexpr(std::is_void_v<result_type>){
@@ -94,7 +122,7 @@ public:
     template<typename F_, typename...Args_>
     task_v3_impl(F_&& f_, Args_&&...args_):
             f{std::forward<F_>(f_)},
-            args{std::forward<Args_>(args_)...}
+            args{std::make_tuple(std::forward<Args_>(args_)...)}
         {}
     auto get_future(bool sync = true){
             return future_type{sync, task_promise.get_future()};
@@ -297,6 +325,7 @@ public:
     }
 
     //return task_future<R>, where R is return type of F called with args
+    //std::reference_wrapper should be used to pass args by ref
     template<typename F, typename...Args>
     auto push(F&& f, Args&&...args){return push_<true>(std::forward<F>(f), std::forward<Args>(args)...);}
     template<typename F, typename...Args>
@@ -377,6 +406,7 @@ public:
     }
 
     //return task_future<R>, where R is return type of F called with args
+    //std::reference_wrapper should be used to pass args by ref
     template<typename F, typename...Args>
     auto push(F&& f, Args&&...args){return push_<true>(std::forward<F>(f), std::forward<Args>(args)...);}
     template<typename F, typename...Args>
