@@ -13,8 +13,33 @@
 
 namespace thread_pool{
 
+class task_group
+{
+    std::atomic<std::size_t> task_inprogress_counter_{0};
+    std::condition_variable all_complete_{};
+    std::mutex guard_{};
+public:
+    void inc(){
+        ++task_inprogress_counter_;
+    }
+    void dec(){
+        {
+            std::lock_guard<std::mutex> lock{guard_};
+            --task_inprogress_counter_;
+        }
+        all_complete_.notify_all();
+    }
+    void wait(){
+        std::unique_lock<std::mutex> lock{guard_};
+        while(task_inprogress_counter_.load()!=0){
+            all_complete_.wait(lock);
+        }
+    }
+};
+
 template<typename R>
-class task_future{
+class task_future
+{
     using result_type = R;
     bool sync_;
     std::future<result_type> f;
@@ -74,33 +99,6 @@ public:
     virtual void call() = 0;
 };
 
-// template<typename F, typename...Args>
-// class task_v3_impl : public task_v3_base
-// {
-//     using result_type = std::invoke_result_t<F,Args...>;
-//     F f;
-//     std::tuple<Args...> args;
-//     std::promise<result_type> task_promise;
-//     void call() override {
-//             if constexpr(std::is_void_v<result_type>){
-//                 std::apply(f, std::move(args));
-//                 task_promise.set_value();
-//             }else{
-//                 task_promise.set_value(std::apply(f, std::move(args)));
-//             }
-//         }
-// public:
-//     using future_type = task_future<result_type>;
-//     template<typename F_, typename...Args_>
-//     task_v3_impl(F_&& f_, Args_&&...args_):
-//             f{std::forward<F_>(f_)},
-//             args{std::forward<Args_>(args_)...}
-//         {}
-//     auto get_future(bool sync = true){
-//             return future_type{sync, task_promise.get_future()};
-//         }
-// };
-
 template<typename F, typename...Args>
 class task_v3_impl : public task_v3_base
 {
@@ -129,6 +127,26 @@ public:
         }
 };
 
+template<typename F, typename...Args>
+class group_task_v3_impl : public task_v3_base
+{
+    using args_type = decltype(std::make_tuple(std::declval<Args>()...));
+    std::reference_wrapper<task_group> group_;
+    F f;
+    args_type args;
+    void call() override {
+        std::apply(f, std::move(args));
+        group_.get().dec();
+    }
+public:
+    template<typename F_, typename...Args_>
+    group_task_v3_impl(std::reference_wrapper<task_group> group__, F_&& f_, Args_&&...args_):
+        group_{group__},
+        f{std::forward<F_>(f_)},
+        args{std::make_tuple(std::forward<Args_>(args_)...)}
+    {}
+};
+
 class task_v3
 {
     std::unique_ptr<task_v3_base> impl;
@@ -142,6 +160,11 @@ public:
         using impl_type = task_v3_impl<std::decay_t<F>, std::decay_t<Args>...>;
         impl = std::make_unique<impl_type>(std::forward<F>(f),std::forward<Args>(args)...);
         return static_cast<impl_type*>(impl.get())->get_future(sync);
+    }
+    template<typename F, typename...Args>
+    void set_group_task(std::reference_wrapper<task_group> group, F&& f, Args&&...args){
+        using impl_type = group_task_v3_impl<std::decay_t<F>, std::decay_t<Args>...>;
+        impl = std::make_unique<impl_type>(group, std::forward<F>(f),std::forward<Args>(args)...);
     }
 };
 
@@ -324,12 +347,29 @@ public:
         init();
     }
 
-    //return task_future<R>, where R is return type of F called with args
+    //return task_future<R> object, where R is return type of F called with args, future will sync when destroyed
     //std::reference_wrapper should be used to pass args by ref
     template<typename F, typename...Args>
     auto push(F&& f, Args&&...args){return push_<true>(std::forward<F>(f), std::forward<Args>(args)...);}
+    //returned future is not sync when destroyed,
     template<typename F, typename...Args>
     auto push_async(F&& f, Args&&...args){return push_<false>(std::forward<F>(f), std::forward<Args>(args)...);}
+    //bind task to group
+    template<typename F, typename...Args>
+    void push_group(task_group& group, F&& f, Args&&...args){
+        std::unique_lock<mutex_type> lock{guard};
+        while(true){
+            if (auto task = tasks.try_push()){
+                group.inc();
+                task->set_group_task(group, std::forward<F>(f), std::forward<Args>(args)...);
+                lock.unlock();
+                has_task.notify_one();
+                break;
+            }else{
+                has_slot.wait(lock);
+            }
+        }
+    }
 
 private:
 

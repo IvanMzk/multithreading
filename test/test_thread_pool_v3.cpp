@@ -126,4 +126,84 @@ TEMPLATE_TEST_CASE("test_thread_pool_v3_v4_result","[test_thread_pool_v3_v4]",
     REQUIRE(result_sum == expected_sum);
 }
 
+TEMPLATE_TEST_CASE("test_thread_pool_v3_task_group","[test_thread_pool_v3]",
+    thread_pool::thread_pool_v3
+)
+{
+    using thread_pool::task_group;
+    using tread_pool_type = TestType;
 
+    constexpr static std::size_t n_threads = 10;
+    tread_pool_type pool{n_threads};
+    task_group group{};
+    std::atomic<std::size_t> counter{0};
+
+    auto inc = [](auto& i, auto delay_ms){
+        std::this_thread::sleep_for(std::chrono::milliseconds(delay_ms));
+        i.fetch_add(1);
+    };
+
+    pool.push_group(group,inc,std::ref(counter),10);
+    pool.push_group(group,inc,std::ref(counter),10);
+    pool.push_group(group,inc,std::ref(counter),100);
+    pool.push_group(group,inc,std::ref(counter),100);
+    pool.push_group(group,inc,std::ref(counter),1000);
+    pool.push_group(group,inc,std::ref(counter),1000);
+    pool.push_group(group,inc,std::ref(counter),1000);
+    pool.push_group(group,inc,std::ref(counter),1000);
+    pool.push_group(group,inc,std::ref(counter),1000);
+    pool.push_group(group,inc,std::ref(counter),1000);
+    group.wait();
+    REQUIRE(counter.load() == 10);
+}
+
+TEMPLATE_TEST_CASE("test_thread_pool_v3_task_group_many_tasks","[test_thread_pool_v3]",
+    thread_pool::thread_pool_v3
+)
+{
+    using thread_pool::task_group;
+    using tread_pool_type = TestType;
+    using test_thread_pool_v3::f;
+    using test_thread_pool_v3::g;
+    using test_thread_pool_v3::h;
+    using test_thread_pool_v3::q;
+    using test_thread_pool_v3::v;
+    using test_thread_pool_v3::counter;
+
+    constexpr static std::size_t n_threads = 100;
+    constexpr static std::size_t n_tasks = 1*100*1000;
+    tread_pool_type pool{n_threads};
+    task_group group{};
+    counter.store(0);
+    std::size_t counter_{0};
+    v v_{};
+    for (std::size_t i{0}; i!=n_tasks; ++i){
+        switch(i%5)
+        {
+            case 0:
+                pool.push_group(group,f);
+                ++counter_;
+                break;
+            case 1:
+                pool.push_group(group,g,i);
+                counter_+=i;
+                break;
+            case 2:
+                pool.push_group(group,h{},i);
+                counter_-=i;
+                break;
+            case 3:
+                pool.push_group(group,q{});
+                --counter_;
+                break;
+            case 4:
+                pool.push_group(group,&v::f, &v_, i);
+                counter_+=i;
+                break;
+            default :
+                break;
+        }
+    }
+    group.wait();
+    REQUIRE(counter == counter_);
+}
