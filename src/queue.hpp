@@ -33,9 +33,6 @@ public:
     void emplace(Args&&...args){
         new(reinterpret_cast<void*>(buffer)) value_type{std::forward<Args>(args)...};
     }
-    value_type&& move(){
-        return std::move(*reinterpret_cast<value_type*>(buffer));
-    }
     template<typename V>
     void move(V& v){
         v = std::move(*reinterpret_cast<value_type*>(buffer));
@@ -90,6 +87,7 @@ public:
         return *this;
     }
     element& operator=(value_type&& v){
+        clear();
         element__.emplace(std::move(v));
         empty_ = false;
         return *this;
@@ -112,7 +110,7 @@ private:
     }
     void init(element&& other){
         if (!other.empty_){
-            element__.emplace(other.element__.move());
+            element__.emplace(std::move(other.element__.get()));
             empty_ = false;
         }
     }
