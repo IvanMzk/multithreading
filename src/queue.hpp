@@ -31,20 +31,17 @@ public:
 
     template<typename...Args>
     void emplace(Args&&...args){
-        new(reinterpret_cast<void*>(buffer)) value_type{std::forward<Args>(args)...};
+        new(buffer) value_type{std::forward<Args>(args)...};
     }
     template<typename V>
     void move(V& v){
-        v = std::move(*reinterpret_cast<value_type*>(buffer));
-    }
-    const value_type& get()const{
-        return *reinterpret_cast<value_type*>(buffer);
-    }
-    value_type& get(){
-        return *reinterpret_cast<value_type*>(buffer);
+        v = std::move(get());
     }
     void destroy(){
-        reinterpret_cast<value_type*>(buffer)->~value_type();
+        get().~value_type();
+    }
+    value_type& get(){
+        return *std::launder(reinterpret_cast<value_type*>(buffer));
     }
 private:
     alignas(value_type) std::byte buffer[sizeof(value_type)];
