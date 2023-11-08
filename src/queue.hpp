@@ -43,6 +43,9 @@ public:
     value_type& get(){
         return *std::launder(reinterpret_cast<value_type*>(buffer));
     }
+    const value_type& get()const{
+        return *std::launder(reinterpret_cast<const value_type*>(buffer));
+    }
 private:
     alignas(value_type) std::byte buffer[sizeof(value_type)];
 };
