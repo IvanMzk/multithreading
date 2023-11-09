@@ -351,7 +351,7 @@ public:
     //std::reference_wrapper should be used to pass args by ref
     template<typename F, typename...Args>
     auto push(F&& f, Args&&...args){return push_<true>(std::forward<F>(f), std::forward<Args>(args)...);}
-    //returned future is not sync when destroyed,
+    //returned future will not sync when destroyed
     template<typename F, typename...Args>
     auto push_async(F&& f, Args&&...args){return push_<false>(std::forward<F>(f), std::forward<Args>(args)...);}
     //bind task to group
