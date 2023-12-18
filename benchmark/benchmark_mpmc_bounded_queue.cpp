@@ -4,7 +4,7 @@
 
 #include "catch.hpp"
 #include "benchmark_helpers.hpp"
-#include "mpmc_bounded_queue.hpp"
+#include "queue.hpp"
 
 
 TEST_CASE("test_make_ranges","test_make_ranges"){
@@ -18,14 +18,14 @@ TEST_CASE("test_make_ranges","test_make_ranges"){
 
 namespace benchmark_mpmc_bounded_queue{
     using value_type = float;
-    static constexpr std::size_t n_elements = 100*1000*1000;
+    static constexpr std::size_t n_elements = 10*1000*1000;
     static constexpr std::size_t capacity = 64;
 }
 
 TEMPLATE_TEST_CASE("benchmark_mpmc_bounded_queue_not_blocking_interface","[benchmark_mpmc_bounded_queue]",
-    (mpmc_bounded_queue::mpmc_bounded_queue_v1<benchmark_mpmc_bounded_queue::value_type, benchmark_mpmc_bounded_queue::capacity>),
-    (mpmc_bounded_queue::mpmc_bounded_queue_v2<benchmark_mpmc_bounded_queue::value_type, benchmark_mpmc_bounded_queue::capacity>),
-    (mpmc_bounded_queue::mpmc_bounded_queue_v3<benchmark_mpmc_bounded_queue::value_type, benchmark_mpmc_bounded_queue::capacity>)
+    (queue::mpmc_bounded_queue_v1<benchmark_mpmc_bounded_queue::value_type>),
+    (queue::mpmc_bounded_queue_v2<benchmark_mpmc_bounded_queue::value_type>),
+    (queue::mpmc_bounded_queue_v3<benchmark_mpmc_bounded_queue::value_type>)
 )
 {
     using benchmark_helpers::make_ranges;
@@ -37,7 +37,7 @@ TEMPLATE_TEST_CASE("benchmark_mpmc_bounded_queue_not_blocking_interface","[bench
     static constexpr std::size_t n_consumers = 10;
     static constexpr std::size_t n_elements = benchmark_mpmc_bounded_queue::n_elements;
 
-    queue_type queue{};
+    queue_type queue{benchmark_mpmc_bounded_queue::capacity};
     std::vector<value_type> expected(n_elements);
     for (std::size_t i{0}; i!=n_elements; ++i){
         expected[i] = static_cast<value_type>(i);
@@ -78,7 +78,7 @@ TEMPLATE_TEST_CASE("benchmark_mpmc_bounded_queue_not_blocking_interface","[bench
     std::for_each(consumers.begin(),consumers.end(),[](auto& t){t.join();});
     auto stop = cpu_timer{};
 
-    std::cout<<std::endl<<typeid(queue_type).name()<<"non blocking data transfer, ms"<<stop-start;
+    std::cout<<std::endl<<typeid(queue_type).name()<<" non blocking data transfer, ms "<<stop-start;
 
     std::sort(result.begin(),result.end());
     REQUIRE(result.size() == expected.size());
@@ -87,9 +87,9 @@ TEMPLATE_TEST_CASE("benchmark_mpmc_bounded_queue_not_blocking_interface","[bench
 }
 
 TEMPLATE_TEST_CASE("benchmark_mpmc_bounded_queue_blocking_interface","[benchmark_mpmc_bounded_queue]",
-    (mpmc_bounded_queue::mpmc_bounded_queue_v1<benchmark_mpmc_bounded_queue::value_type, benchmark_mpmc_bounded_queue::capacity>),
-    (mpmc_bounded_queue::mpmc_bounded_queue_v2<benchmark_mpmc_bounded_queue::value_type, benchmark_mpmc_bounded_queue::capacity>),
-    (mpmc_bounded_queue::mpmc_bounded_queue_v3<benchmark_mpmc_bounded_queue::value_type, benchmark_mpmc_bounded_queue::capacity>)
+    (queue::mpmc_bounded_queue_v1<benchmark_mpmc_bounded_queue::value_type>),
+    (queue::mpmc_bounded_queue_v2<benchmark_mpmc_bounded_queue::value_type>),
+    (queue::mpmc_bounded_queue_v3<benchmark_mpmc_bounded_queue::value_type>)
 )
 {
     using benchmark_helpers::make_ranges;
@@ -101,7 +101,7 @@ TEMPLATE_TEST_CASE("benchmark_mpmc_bounded_queue_blocking_interface","[benchmark
     static constexpr std::size_t n_consumers = 10;
     static constexpr std::size_t n_elements = benchmark_mpmc_bounded_queue::n_elements;
 
-    queue_type queue{};
+    queue_type queue{benchmark_mpmc_bounded_queue::capacity};
     std::vector<value_type> expected(n_elements);
     for (std::size_t i{0}; i!=n_elements; ++i){
         expected[i] = static_cast<value_type>(i);
@@ -143,7 +143,7 @@ TEMPLATE_TEST_CASE("benchmark_mpmc_bounded_queue_blocking_interface","[benchmark
     std::for_each(consumers.begin(),consumers.end(),[](auto& t){t.join();});
     auto stop = cpu_timer{};
 
-    std::cout<<std::endl<<typeid(queue_type).name()<<"blocking data transfer, ms"<<stop-start;
+    std::cout<<std::endl<<typeid(queue_type).name()<<" blocking data transfer, ms "<<stop-start;
 
     std::sort(result.begin(),result.end());
     REQUIRE(result.size() == expected.size());

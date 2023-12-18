@@ -131,13 +131,7 @@ public:
     {
         init(std::forward<Args>(args)...);
     }
-    // explicit mc_bounded_pool(std::size_t capacity__, const value_type& value__ = value_type{}, const Allocator& allocator__ = Allocator{}):
-    //     allocator{allocator__},
-    //     pool(capacity__),
-    //     elements{allocator.allocate(capacity__)}
-    // {
-    //     init(value__);
-    // }
+
     template<typename It, std::enable_if_t<!std::is_convertible_v<It,std::size_t>,int> = 0>
     mc_bounded_pool(It first, It last, const Allocator& allocator__ = Allocator{}):
         allocator{allocator__},
@@ -153,7 +147,15 @@ public:
         allocator.deallocate(elements,capacity());
     }
 
-    auto pop(){return static_cast<element_type*>(pool.pop().get())->make_shared();}
+    //returns shared_element object that is smart wrapper of reference to reusable object
+    //after last copy of shared_element object is destroyed reusable object is returned to pool and ready to new use
+    //blocks until reusable object is available
+    auto pop(){
+        return static_cast<element_type*>(pool.pop().get())->make_shared();
+    }
+
+    //not blocking, if no reusable objects available returns immediately
+    //result, that is shared_element object, can be converted to bool and test, false if no objects available, true otherwise
     auto try_pop(){
         if (auto e = pool.try_pop()){
             return static_cast<element_type*>(e.get())->make_shared();
@@ -173,12 +175,7 @@ private:
         for(;it!=end;++it){new(it) element_type{&pool, std::forward<Args>(args)...};}
         init_pool();
     }
-    // void init(const value_type& v){
-    //     auto it = elements;
-    //     auto end = elements+capacity();
-    //     for(;it!=end;++it){new(it) element_type{&pool, v};}
-    //     init_pool();
-    // }
+
     template<typename It>
     void init(It first, It last){
         auto it = elements;
