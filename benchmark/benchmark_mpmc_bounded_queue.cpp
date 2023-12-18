@@ -45,14 +45,18 @@ TEMPLATE_TEST_CASE("benchmark_mpmc_bounded_queue_not_blocking_interface","[bench
     auto producer_f = [&queue](auto first, auto last){
         std::for_each(first,last,
             [&queue](const auto& v){
-                while(!queue.try_push(v)){}
+                while(!queue.try_push(v)){
+                    std::this_thread::yield();
+                }
             }
         );
     };
     auto consumer_f = [&queue](auto first, auto last){
         std::for_each(first,last,
             [&queue](auto& v){
-                while(!queue.try_pop(v)){};
+                while(!queue.try_pop(v)){
+                    std::this_thread::yield();
+                };
             }
         );
     };
