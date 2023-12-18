@@ -300,7 +300,9 @@ public:
                 auto next_push_reserve_counter = push_reserve_counter_+1;
                 if (push_reserve_counter.compare_exchange_weak(push_reserve_counter_, next_push_reserve_counter, std::memory_order::memory_order_relaxed)){
                     elements[index(push_reserve_counter_)].emplace(std::forward<Args>(args)...);
-                    while(push_counter.load(std::memory_order::memory_order_acquire) != push_reserve_counter_){}//wait for prev pushes  //acquaire0
+                    while(push_counter.load(std::memory_order::memory_order_acquire) != push_reserve_counter_){ //wait for prev pushes  acquaire0
+                        std::this_thread::yield();
+                    }
                     push_counter.store(next_push_reserve_counter, std::memory_order::memory_order_release);     //release0
                     return true;
                 }
@@ -354,7 +356,9 @@ private:
                     const auto index_ = index(pop_reserve_counter_);
                     elements[index_].move(v);
                     elements[index_].destroy();
-                    while(pop_counter.load(std::memory_order::memory_order_acquire) != pop_reserve_counter_){}//wait for prev pops  //acquaire1
+                    while(pop_counter.load(std::memory_order::memory_order_acquire) != pop_reserve_counter_){//wait for prev pops  acquaire1
+                        std::this_thread::yield();
+                    }
                     pop_counter.store(next_pop_reserve_counter, std::memory_order::memory_order_release);   //release1
                     return true;
                 }
