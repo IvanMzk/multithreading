@@ -3,10 +3,8 @@ target_include_directories(Test PRIVATE ${CMAKE_CURRENT_LIST_DIR}/../qa_common)
 target_link_libraries(Test PRIVATE multithreading)
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
     target_compile_options(Test PRIVATE /W4 /Zc:__cplusplus "$<$<CONFIG:RELEASE>:/O2>")
-    target_link_options(Test PRIVATE /STACK:8388608)
 else()
     target_compile_options(Test PRIVATE -Werror "$<$<CONFIG:RELEASE>:-O2>")
-    target_link_options(Test PRIVATE -Wl,--stack,8388608)
 endif()
 
 target_sources(Test PRIVATE

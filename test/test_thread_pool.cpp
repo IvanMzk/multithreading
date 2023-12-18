@@ -34,7 +34,7 @@ TEMPLATE_TEST_CASE("test_thread_pool_no_result" , "[test_thread_pool]",
     constexpr static std::size_t queue_capacity = n_threads;
     constexpr static std::size_t n_tasks = 1*100*1000;
     tread_pool_type pool{n_threads, queue_capacity};
-    std::array<task_future<void>, n_tasks> futures;
+    std::vector<task_future<void>> futures(n_tasks);
     counter.store(0);
     for (std::size_t i{0}; i!=n_tasks; ++i){
         if(i%2){
