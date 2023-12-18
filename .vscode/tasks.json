@@ -6,7 +6,7 @@
         {
             "type": "shell",
             "label": "cmake generate",
-            "command": "cmake.exe -DCMAKE_BUILD_TYPE=Release -G \"Ninja\" -S ${workspaceFolder} -B ${workspaceFolder}\\build",
+            "command": "cmake -DCMAKE_BUILD_TYPE=Release -S ${workspaceFolder} -B ${workspaceFolder}/build -GNinja -DBUILD_TEST=ON",
             "args": [],
             "options": {
                 "cwd": "${workspaceFolder}"
@@ -16,14 +16,14 @@
         {
             "type": "shell",
             "label": "cmake build Test",
-            "command": "cmake.exe --build ${workspaceFolder}\\build --target Test",
+            "command": "cmake --build ${workspaceFolder}/build --target Test",
             "args": [],
             "group": "test"
         },
         {
             "type": "shell",
             "label": "Run tests",
-            "command": "${workspaceFolder}\\build\\test\\Test.exe",
+            "command": "${workspaceFolder}/build/test/Test",
             "args": [],
             "group": "test"
         },

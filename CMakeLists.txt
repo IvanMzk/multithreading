@@ -1,7 +1,20 @@
-cmake_minimum_required(VERSION 3.2)
-set(project_name multithreading)
-project(${project_name})
+cmake_minimum_required(VERSION 3.5)
+project(multithreading)
+
+set(include_dir ${CMAKE_CURRENT_LIST_DIR}/include)
+
+set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
+set(THREADS_PREFER_PTHREAD_FLAG TRUE)
+find_package(Threads REQUIRED)
+
+option(BUILD_TEST "build multithreading tests" OFF)
+
 if (CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
-    add_subdirectory(test)
+    if(BUILD_TEST)
+        add_subdirectory(test)
+    endif()
 endif()
-add_subdirectory(src)
+
+add_library(multithreading INTERFACE)
+target_include_directories(multithreading INTERFACE ${include_dir})
+target_compile_features(multithreading INTERFACE cxx_std_17)

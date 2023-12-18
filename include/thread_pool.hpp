@@ -23,10 +23,8 @@ public:
         ++task_inprogress_counter_;
     }
     void dec(){
-        {
-            std::lock_guard<std::mutex> lock{guard_};
-            --task_inprogress_counter_;
-        }
+        std::lock_guard<std::mutex> lock{guard_};
+        --task_inprogress_counter_;
         all_complete_.notify_all();
     }
     void wait(){
@@ -212,8 +210,8 @@ private:
         while(true){
             if (auto task = tasks.try_push(f,std::forward<Args_>(args)...)){
                 auto future = task->get_future(Sync);
-                lock.unlock();
                 has_task.notify_one();
+                lock.unlock();
                 return future;
             }else{
                 has_slot.wait(lock);
@@ -240,8 +238,8 @@ private:
             std::unique_lock<mutex_type> lock{guard};
             while(!finish_workers.load()){  //has_task conditional loop
                 if (auto t = tasks.try_pop()){
-                    lock.unlock();
                     has_slot.notify_one();
+                    lock.unlock();
                     t.get().call();
                     break;
                 }else{
@@ -324,7 +322,9 @@ private:
 
 //single allocation thread pool with bounded task queue
 //allow different signatures and return types of task callable
-//push task template method returns task_future<R>, where R is return type of callable given arguments types
+//push template method returns task_future<R>, where R is return type of callable given arguments types
+//push_async template method returns future as above that will not sync on destroy
+//push_group template method bound task to group object to be waited on
 class thread_pool_v3
 {
     using task_type = task_v3;
@@ -362,8 +362,8 @@ public:
             if (auto task = tasks.try_push()){
                 group.inc();
                 task->set_group_task(group, std::forward<F>(f), std::forward<Args>(args)...);
-                lock.unlock();
                 has_task.notify_one();
+                lock.unlock();
                 break;
             }else{
                 has_slot.wait(lock);
@@ -380,8 +380,8 @@ private:
         while(true){
             if (auto task = tasks.try_push()){
                 future_type future = task->set_task(Sync, std::forward<F>(f), std::forward<Args>(args)...);
-                lock.unlock();
                 has_task.notify_one();
+                lock.unlock();
                 return future;
             }else{
                 has_slot.wait(lock);
@@ -401,15 +401,13 @@ private:
         std::for_each(workers.begin(),workers.end(),[](auto& worker){worker.join();});
     }
 
-    //problem is to use waiting not yealding in loop and have concurrent push and pop
-    //conditional_variable must use same mutex to guard push and pop, even if queue is mpmc
     void worker_loop(){
         while(!finish_workers.load()){  //worker loop
             std::unique_lock<mutex_type> lock{guard};
             while(!finish_workers.load()){  //has_task conditional loop
                 if (auto t = tasks.try_pop()){
-                    lock.unlock();
                     has_slot.notify_one();
+                    lock.unlock();
                     t.get().call();
                     break;
                 }else{
@@ -427,6 +425,8 @@ private:
     std::condition_variable has_slot;
 };
 
+
+//single allocation thread pool with unbounded task queue
 class thread_pool_v4
 {
     using task_base_type = task_v3_base;
@@ -478,8 +478,6 @@ private:
         std::for_each(workers.begin(),workers.end(),[](auto& worker){worker.join();});
     }
 
-    //problem is to use waiting not yealding in loop and have concurrent push and pop
-    //conditional_variable must use same mutex to guard push and pop, even if queue is mpmc
     void worker_loop(){
         while(!finish_workers.load()){  //worker loop
             std::unique_lock<mutex_type> lock{guard};
