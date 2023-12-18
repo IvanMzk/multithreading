@@ -322,7 +322,9 @@ public:
     template<typename...Args>
     void push(Args&&...args){
         auto push_reserve_counter_ = push_reserve_counter.fetch_add(1, std::memory_order::memory_order_relaxed);   //leads to overwrite
-        while(push_reserve_counter_ - pop_counter.load(std::memory_order::memory_order_acquire) >= capacity_){}    //wait until not full
+        while(push_reserve_counter_ - pop_counter.load(std::memory_order::memory_order_acquire) >= capacity_){ //wait until not full
+            std::this_thread::yield();
+        }
         elements[index(push_reserve_counter_)].emplace(std::forward<Args>(args)...);
         while(push_counter.load(std::memory_order::memory_order_acquire) != push_reserve_counter_){ //wait for prev pushes
             std::this_thread::yield();
@@ -369,7 +371,9 @@ private:
     template<typename V>
     void pop_(V& v){
         auto pop_reserve_counter_ = pop_reserve_counter.fetch_add(1, std::memory_order::memory_order_relaxed);
-        while(pop_reserve_counter_ >= push_counter.load(std::memory_order::memory_order_acquire)){}   //wait until not empty
+        while(pop_reserve_counter_ >= push_counter.load(std::memory_order::memory_order_acquire)){ //wait until not empty
+            std::this_thread::yield();
+        }
         const auto index_ = index(pop_reserve_counter_);
         elements[index_].move(v);
         elements[index_].destroy();
