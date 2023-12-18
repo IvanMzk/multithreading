@@ -180,9 +180,11 @@ public:
 
     template<typename...Args>
     void push(Args&&...args){
-        auto push_counter_ = push_counter.fetch_add(1, std::memory_order::memory_order_relaxed);  //reserve
+        auto push_counter_ = push_counter.fetch_add(1, std::memory_order::memory_order_relaxed); //reserve
         auto& element = elements[index(push_counter_)];
-        while(push_counter_ != element.id.load(std::memory_order::memory_order_acquire)){};   //wait until element is empty
+        while(push_counter_ != element.id.load(std::memory_order::memory_order_acquire)){ //wait until element is empty
+            std::this_thread::yield();
+        }
         element.emplace(std::forward<Args>(args)...);
         element.id.store(push_counter_+1, std::memory_order::memory_order_release);
     }
@@ -225,10 +227,12 @@ private:
 
     template<typename V>
     void pop_(V& v){
-        auto pop_counter_ = pop_counter.fetch_add(1, std::memory_order::memory_order_relaxed);    //reserve
+        auto pop_counter_ = pop_counter.fetch_add(1, std::memory_order::memory_order_relaxed); //reserve
         auto next_pop_counter = pop_counter_+1;
         auto& element = elements[index(pop_counter_)];
-        while(next_pop_counter != element.id.load(std::memory_order::memory_order_acquire)){};  //wait until element is full
+        while(next_pop_counter != element.id.load(std::memory_order::memory_order_acquire)){ //wait until element is full
+            std::this_thread::yield();
+        }
         element.move(v);
         element.destroy();
         element.id.store(pop_counter_+capacity_, std::memory_order::memory_order_release);
@@ -318,7 +322,9 @@ public:
         auto push_reserve_counter_ = push_reserve_counter.fetch_add(1, std::memory_order::memory_order_relaxed);   //leads to overwrite
         while(push_reserve_counter_ - pop_counter.load(std::memory_order::memory_order_acquire) >= capacity_){}    //wait until not full
         elements[index(push_reserve_counter_)].emplace(std::forward<Args>(args)...);
-        while(push_counter.load(std::memory_order::memory_order_acquire) != push_reserve_counter_){}     //wait for prev pushes
+        while(push_counter.load(std::memory_order::memory_order_acquire) != push_reserve_counter_){ //wait for prev pushes
+            std::this_thread::yield();
+        }
         push_counter.store(push_reserve_counter_+1, std::memory_order::memory_order_release); //commit
     }
 
@@ -363,7 +369,9 @@ private:
         const auto index_ = index(pop_reserve_counter_);
         elements[index_].move(v);
         elements[index_].destroy();
-        while(pop_counter.load(std::memory_order::memory_order_acquire) != pop_reserve_counter_){}   //wait for prev pops
+        while(pop_counter.load(std::memory_order::memory_order_acquire) != pop_reserve_counter_){ //wait for prev pops
+            std::this_thread::yield();
+        }
         pop_counter.store(pop_reserve_counter_+1, std::memory_order::memory_order_release);    //commit
     }
 
