@@ -42,5 +42,25 @@ target_link_libraries(my_target PRIVATE multithreading)
 ...
 ```
 
+## Build tests and benchmarks
+
+[Catch](https://github.com/catchorg/Catch2) framework is used for testing.
+
+To build and run tests:
+
+```cmake
+cmake -B build_dir -DBUILD_TEST=ON
+cmake --build build_dir
+build_dir/test/Test
+```
+
+To build and run benchmarks:
+
+```cmake
+cmake -B build_dir -DBUILD_BENCHMARK=ON
+cmake --build build_dir
+build_dir/benchmark/Benchmark
+```
+
 ## License
 This software is licensed under the [BSL 1.0](LICENSE.txt).
