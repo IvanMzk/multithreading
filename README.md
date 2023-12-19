@@ -13,7 +13,7 @@ It uses single allocation for queue control structures and constructed object.
 
 ### MPMC bounded queues
 
-Multiple producers, multiple consumers ring buffers implementations.
+Multiple producers, multiple consumers ring buffers implementations with and without mutexes.
 
 ### Reusable resources pool
 
