@@ -27,5 +27,20 @@ Fixed signature thread pool, allocation free.
 
 Arbitrary signature thread pool, single allocation per task.
 
+## Including into project
+
+All components are header only so to use its in project you can include needed header files and everything will work.
+
+Also you can utilize `add_subdirectory(...)` CMake command, e.g.:
+
+```cmake
+cmake_minimum_required(VERSION 3.5)
+project(my_project)
+add_subdirectory(path_to_multithreading_dir multithreading)
+add_executable(my_target)
+target_link_libraries(my_target PRIVATE multithreading)
+...
+```
+
 ## License
 This software is licensed under the [BSL 1.0](LICENSE.txt).
