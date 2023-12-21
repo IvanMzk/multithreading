@@ -62,7 +62,8 @@ class element_v1_ : public element_<T>
 {
     public:
         using size_type = std::size_t;
-        alignas(hardware_destructive_interference_size) std::atomic<size_type> id{};
+        std::atomic<size_type> id{};
+        std::array<std::byte, detail::hardware_destructive_interference_size> padding_;
 };
 
 template<typename T>
@@ -268,8 +269,9 @@ private:
     size_type capacity_;
     allocator_type allocator;
     element_type* elements;
-    alignas(detail::hardware_destructive_interference_size) std::atomic<size_type> push_counter{0};
-    alignas(detail::hardware_destructive_interference_size) std::atomic<size_type> pop_counter{0};
+    std::atomic<size_type> push_counter{0};
+    std::array<std::byte, detail::hardware_destructive_interference_size> padding_;
+    std::atomic<size_type> pop_counter{0};
 };
 
 template<typename T, typename Allocator = std::allocator<detail::element_<T>>>
@@ -404,10 +406,13 @@ private:
     size_type capacity_;
     allocator_type allocator;
     element_type* elements;
-    alignas(detail::hardware_destructive_interference_size) std::atomic<size_type> push_counter{0};
-    alignas(detail::hardware_destructive_interference_size) std::atomic<size_type> push_reserve_counter{0};
-    alignas(detail::hardware_destructive_interference_size) std::atomic<size_type> pop_counter{0};
-    alignas(detail::hardware_destructive_interference_size) std::atomic<size_type> pop_reserve_counter{0};
+    std::atomic<size_type> push_counter{0};
+    std::array<std::byte, detail::hardware_destructive_interference_size> padding0_;
+    std::atomic<size_type> push_reserve_counter{0};
+    std::array<std::byte, detail::hardware_destructive_interference_size> padding1_;
+    std::atomic<size_type> pop_counter{0};
+    std::array<std::byte, detail::hardware_destructive_interference_size> padding2_;
+    std::atomic<size_type> pop_reserve_counter{0};
 };
 
 template<typename T, typename Allocator = std::allocator<detail::element_<T>>>
@@ -533,8 +538,9 @@ private:
     element_type* elements{};
     std::atomic<size_type> push_index{};
     std::atomic<size_type> pop_index{};
-    alignas(detail::hardware_destructive_interference_size) mutex_type push_guard{};
-    alignas(detail::hardware_destructive_interference_size) mutex_type pop_guard{};
+    mutex_type push_guard{};
+    std::array<std::byte, detail::hardware_destructive_interference_size> padding_;
+    mutex_type pop_guard{};
 };
 
 //single thread bounded queue
