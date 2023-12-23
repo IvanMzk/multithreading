@@ -127,7 +127,8 @@ TEMPLATE_TEST_CASE("test_thread_pool_v3_v4_result","[test_thread_pool_v3_v4]",
 }
 
 TEMPLATE_TEST_CASE("test_thread_pool_v3_task_group","[test_thread_pool_v3]",
-    thread_pool::thread_pool_v3
+    thread_pool::thread_pool_v3,
+    thread_pool::thread_pool_v4
 )
 {
     using thread_pool::task_group;
@@ -158,7 +159,8 @@ TEMPLATE_TEST_CASE("test_thread_pool_v3_task_group","[test_thread_pool_v3]",
 }
 
 TEMPLATE_TEST_CASE("test_thread_pool_v3_task_group_many_tasks","[test_thread_pool_v3]",
-    thread_pool::thread_pool_v3
+    thread_pool::thread_pool_v3,
+    thread_pool::thread_pool_v4
 )
 {
     using thread_pool::task_group;

@@ -82,7 +82,7 @@ public:
     template<typename...Args_>
     task(func_ptr_type f_, Args_&&...args_):
         f{f_},
-        args{std::forward<Args_>(args_)...}
+        args{std::make_tuple(std::forward<Args_>(args_)...)}
     {}
     auto call(){
         if constexpr(std::is_void_v<result_type>){
@@ -174,13 +174,10 @@ public:
 };
 
 
-/*
-* allocation free thread pool with bounded task queue
-* fixed signature and return type of task callable function
-* thread_pool_v1 has waiting worker loop and so may have bigger response time than v2
-* which has yielding worker loop and smaller response time
-*/
-
+//allocation free thread pool with bounded task queue
+//has fixed signature and return type of task callable function, only function pointer supported
+//thread_pool_v1 has waiting worker loop
+//thread_pool_v2 has yielding worker loop and may have smaller response time
 template<typename> class thread_pool_v1;
 template<typename R, typename...Args>
 class thread_pool_v1<R(Args...)>
@@ -204,9 +201,11 @@ public:
         init();
     }
 
-    //async version returns task_future that not wait for task complete in destructor, but still possible to call wait() explicitly
+    //return task_future<R> object, future will sync when destroyed
+    //std::reference_wrapper should be used to pass args by ref
     template<typename...Args_>
     auto push(func_ptr_type f, Args_&&...args){return push_<true>(f, std::forward<Args_>(args)...);}
+    //returned future will not sync when destroyed
     template<typename...Args_>
     auto push_async(func_ptr_type f, Args_&&...args){return push_<false>(f, std::forward<Args_>(args)...);}
 
@@ -238,8 +237,6 @@ private:
         std::for_each(workers.begin(),workers.end(),[](auto& worker){worker.join();});
     }
 
-    //problem is to use waiting not yealding in loop and have concurrent push and pop
-    //conditional_variable must use same mutex to guard push and pop, even if queue is mpmc
     void worker_loop(){
         while(!finish_workers.load()){  //worker loop
             std::unique_lock<mutex_type> lock{guard};
@@ -286,9 +283,11 @@ public:
         init();
     }
 
-    //async version returns task_future that not wait for task complete in destructor, but still possible to call wait() explicitly
+    //return task_future<R> object, future will sync when destroyed
+    //std::reference_wrapper should be used to pass args by ref
     template<typename...Args_>
     auto push(func_ptr_type f, Args_&&...args){return push_<true>(f, std::forward<Args_>(args)...);}
+    //returned future will not sync when destroyed
     template<typename...Args_>
     auto push_async(func_ptr_type f, Args_&&...args){return push_<false>(f, std::forward<Args_>(args)...);}
 
@@ -452,12 +451,23 @@ public:
         init();
     }
 
-    //return task_future<R>, where R is return type of F called with args
+    //return task_future<R> object, where R is return type of F called with args, future will sync when destroyed
     //std::reference_wrapper should be used to pass args by ref
     template<typename F, typename...Args>
     auto push(F&& f, Args&&...args){return push_<true>(std::forward<F>(f), std::forward<Args>(args)...);}
+    //returned future will not sync when destroyed
     template<typename F, typename...Args>
     auto push_async(F&& f, Args&&...args){return push_<false>(std::forward<F>(f), std::forward<Args>(args)...);}
+    //bind task to group
+    template<typename F, typename...Args>
+    void push_group(task_group& group, F&& f, Args&&...args){
+        using task_impl_type = group_task_v3_impl<std::decay_t<F>, std::decay_t<Args>...>;
+        std::unique_lock<mutex_type> lock{guard};
+        tasks.push<task_impl_type>(std::ref(group), std::forward<F>(f), std::forward<Args>(args)...);
+        group.inc();
+        has_task.notify_one();
+        lock.unlock();
+    }
 
 private:
 

@@ -36,6 +36,11 @@ public:
     //left buffer uninitialized
     element_(){}
 
+    element_(const element_&) = delete;
+    element_(element_&&) = delete;
+    element_& operator=(const element_&) = delete;
+    element_& operator=(element_&&) = delete;
+
     template<typename...Args>
     void emplace(Args&&...args){
         new(buffer) value_type{std::forward<Args>(args)...};
@@ -140,6 +145,10 @@ public:
     using value_type = T;
     using allocator_type = Allocator;
 
+    mpmc_bounded_queue_v1(const mpmc_bounded_queue_v1&) = delete;
+    mpmc_bounded_queue_v1(mpmc_bounded_queue_v1&&) = delete;
+    mpmc_bounded_queue_v1& operator=(const mpmc_bounded_queue_v1&) = delete;
+    mpmc_bounded_queue_v1& operator=(mpmc_bounded_queue_v1&&) = delete;
     mpmc_bounded_queue_v1(size_type capacity__, const Allocator& allocator__ = Allocator{}):
         capacity_{capacity__},
         allocator{allocator__}
@@ -156,6 +165,7 @@ public:
         allocator.deallocate(elements, capacity_);
     }
 
+    //if there is empty slot construct element from args in it and return true, return false otherwise
     template<typename...Args>
     bool try_push(Args&&...args){
         auto push_counter_ = push_counter.load(std::memory_order::memory_order_relaxed);
@@ -177,15 +187,19 @@ public:
         }
     }
 
+    //if there is element to pop assign it to v and return true, return false otherwise
     bool try_pop(value_type& v){
         return try_pop_(v);
     }
+
+    //like above but return element wrapper that is implicitly convertible to bool to know if element poped
     auto try_pop(){
         detail::element<value_type> v{};
         try_pop_(v);
         return v;
     }
 
+    //not return until push is complete
     template<typename...Args>
     void push(Args&&...args){
         auto push_counter_ = push_counter.fetch_add(1, std::memory_order::memory_order_relaxed); //reserve
@@ -197,6 +211,7 @@ public:
         element.id.store(push_counter_+1, std::memory_order::memory_order_release);
     }
 
+    //not return until pop is complete
     void pop(value_type& v){
         pop_(v);
     }
@@ -284,6 +299,10 @@ public:
     using value_type = T;
     using allocator_type = Allocator;
 
+    mpmc_bounded_queue_v2(const mpmc_bounded_queue_v2&) = delete;
+    mpmc_bounded_queue_v2(mpmc_bounded_queue_v2&&) = delete;
+    mpmc_bounded_queue_v2& operator=(const mpmc_bounded_queue_v2&) = delete;
+    mpmc_bounded_queue_v2& operator=(mpmc_bounded_queue_v2&&) = delete;
     mpmc_bounded_queue_v2(size_type capacity__, const allocator_type& alloc = allocator_type()):
         capacity_{capacity__},
         allocator{alloc}
@@ -299,6 +318,7 @@ public:
         allocator.deallocate(elements, capacity_+1);
     }
 
+    //if there is empty slot construct element from args in it and return true, return false otherwise
     template<typename...Args>
     bool try_push(Args&&...args){
         auto push_reserve_counter_ = push_reserve_counter.load(std::memory_order::memory_order_relaxed);
@@ -319,15 +339,19 @@ public:
         }
     }
 
+    //if there is element to pop assign it to v and return true, return false otherwise
     bool try_pop(value_type& v){
         return try_pop_(v);
     }
+
+    //like above but return element wrapper that is implicitly convertible to bool to know if element poped
     auto try_pop(){
         detail::element<value_type> v{};
         try_pop_(v);
         return v;
     }
 
+    //not return until push is complete
     template<typename...Args>
     void push(Args&&...args){
         auto push_reserve_counter_ = push_reserve_counter.fetch_add(1, std::memory_order::memory_order_relaxed);   //leads to overwrite
@@ -341,6 +365,7 @@ public:
         push_counter.store(push_reserve_counter_+1, std::memory_order::memory_order_release); //commit
     }
 
+    //not return until pop is complete
     void pop(value_type& v){
         pop_(v);
     }
@@ -426,6 +451,10 @@ public:
     using value_type = T;
     using allocator_type = Allocator;
 
+    mpmc_bounded_queue_v3(const mpmc_bounded_queue_v3&) = delete;
+    mpmc_bounded_queue_v3(mpmc_bounded_queue_v3&&) = delete;
+    mpmc_bounded_queue_v3& operator=(const mpmc_bounded_queue_v3&) = delete;
+    mpmc_bounded_queue_v3& operator=(mpmc_bounded_queue_v3&&) = delete;
     mpmc_bounded_queue_v3(size_type capacity__, const allocator_type& alloc = allocator_type()):
         capacity_{capacity__},
         allocator{alloc}
@@ -441,6 +470,7 @@ public:
         allocator.deallocate(elements, capacity_+1);
     }
 
+    //if there is empty slot construct element from args in it and return true, return false otherwise
     template<typename...Args>
     bool try_push(Args&&...args){
         std::unique_lock<mutex_type> lock{push_guard};
@@ -457,15 +487,19 @@ public:
         }
     }
 
+    //if there is element to pop assign it to v and return true, return false otherwise
     bool try_pop(value_type& v){
         return try_pop_(v);
     }
+
+    //like above but return element wrapper that is implicitly convertible to bool to know if element poped
     auto try_pop(){
         detail::element<value_type> v{};
         try_pop_(v);
         return v;
     }
 
+    //not return until push is complete
     template<typename...Args>
     void push(Args&&...args){
         std::unique_lock<mutex_type> lock{push_guard};
@@ -477,6 +511,7 @@ public:
         lock.unlock();
     }
 
+    //not return until pop is complete
     void pop(value_type& v){
         pop_(v);
     }
@@ -554,6 +589,10 @@ public:
     using value_type = T;
     using allocator_type = Allocator;
 
+    st_bounded_queue(const st_bounded_queue&) = delete;
+    st_bounded_queue(st_bounded_queue&&) = delete;
+    st_bounded_queue& operator=(const st_bounded_queue&) = delete;
+    st_bounded_queue& operator=(st_bounded_queue&&) = delete;
     st_bounded_queue(size_type capacity__, const allocator_type& alloc = allocator_type()):
         capacity_{capacity__},
         allocator{alloc}
@@ -569,6 +608,7 @@ public:
         allocator.deallocate(elements, capacity_+1);
     }
 
+    //if there is empty slot construct element from args in it and return true, return false otherwise
     template<typename...Args>
     auto try_push(Args&&...args){
         value_type* res{nullptr};
@@ -583,14 +623,19 @@ public:
         }
     }
 
+    //if there is element, pop and assign it to v and return true, return false otherwise
     bool try_pop(value_type& v){
         return try_pop_(&v);
     }
+
+    //like above but return element wrapper that is implicitly convertible to bool to know if element poped
     auto try_pop(){
         detail::element<value_type> v{};
         try_pop_(&v);
         return v;
     }
+
+    //if there is element, pop and return true, return false otherwise
     bool pop(){
         return try_pop_(nullptr);
     }
@@ -709,6 +754,11 @@ class st_queue_of_polymorphic
 
 public:
     using allocator_type = Allocator;
+
+    st_queue_of_polymorphic(const st_queue_of_polymorphic&) = delete;
+    st_queue_of_polymorphic(st_queue_of_polymorphic&&) = delete;
+    st_queue_of_polymorphic& operator=(const st_queue_of_polymorphic&) = delete;
+    st_queue_of_polymorphic& operator=(st_queue_of_polymorphic&&) = delete;
     ~st_queue_of_polymorphic(){
         while(try_pop()){};
     }
@@ -722,6 +772,7 @@ public:
     //push to tail
     //ImplT - T interface implementation type, must be derived from T
     //args - arguments to construct ImplT
+    //returns pointer to ImplT*
     template<typename ImplT, typename...Args>
     auto push(Args&&...args){
         static_assert(std::is_base_of_v<T,ImplT>);
