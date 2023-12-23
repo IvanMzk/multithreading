@@ -44,6 +44,8 @@ target_link_libraries(my_target PRIVATE multithreading)
 
 ## Usage
 
+Run group of tasks and wait until all are finished
+
 ```cpp
 #include <iostream>
 #include "thread_pool.hpp"
@@ -66,6 +68,35 @@ int main(int argc, const char* argv[])
     pool.push_group(group,f,3000000);
     group.wait();   //wait until all three tasks bounded to group complete
     std::cout<<std::endl<<counter;  //6000000
+
+    return 0;
+}
+```
+
+Next example shows how to retrieve result from worker
+
+```cpp
+#include <iostream>
+#include "thread_pool.hpp"
+
+int main(int argc, const char* argv[])
+{
+    const auto n_workers = 4;
+    thread_pool::thread_pool_v3 pool{n_workers};
+    //callable to run by pool worker
+    auto f = [](auto n){
+        int counter = 0;
+        for (;n!=0; --n){
+            ++counter;
+        }
+        return counter;
+    };
+    //run tasks
+    auto future0 = pool.push(f,1000000);
+    auto future1 = pool.push(f,2000000);
+    auto future2 = pool.push(f,3000000);
+
+    std::cout<<std::endl<<future0.get()+future1.get()+future2.get();  //6000000
 
     return 0;
 }
