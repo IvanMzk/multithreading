@@ -25,7 +25,16 @@ class task_group
     std::atomic<std::size_t> task_inprogress_counter_{0};
     std::condition_variable all_complete_{};
     std::mutex guard_{};
+    const bool wait_on_destroy{true};
 public:
+    ~task_group(){
+        if (wait_on_destroy){
+            wait();
+        }
+    }
+    explicit task_group(bool wait_on_destroy_=true):
+        wait_on_destroy{wait_on_destroy_}
+    {}
     void inc(){
         ++task_inprogress_counter_;
     }

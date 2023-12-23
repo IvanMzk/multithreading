@@ -42,6 +42,35 @@ target_link_libraries(my_target PRIVATE multithreading)
 ...
 ```
 
+## Usage
+
+```cpp
+#include <iostream>
+#include "thread_pool.hpp"
+
+int main(int argc, const char* argv[])
+{
+    const auto n_workers = 4;
+    thread_pool::thread_pool_v3 pool{n_workers};
+    std::atomic<int> counter{0};
+    //callable to run by pool worker
+    auto f = [&counter](auto n){
+        for (;n!=0; --n){
+            ++counter;
+        }
+    };
+    thread_pool::task_group group{};    //create object to wait on group of tasks
+    //run tasks
+    pool.push_group(group,f,1000000);
+    pool.push_group(group,f,2000000);
+    pool.push_group(group,f,3000000);
+    group.wait();   //wait until all three tasks bounded to group complete
+    std::cout<<std::endl<<counter;  //6000000
+
+    return 0;
+}
+```
+
 ## Build tests and benchmarks
 
 [Catch](https://github.com/catchorg/Catch2) framework is used for testing.
