@@ -14,6 +14,7 @@
 #include <exception>
 #include <new>
 #include <memory>
+#include <thread>
 
 namespace queue{
 
